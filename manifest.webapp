@@ -1,12 +1,12 @@
 {
   "name": "ChronoBee",
   "description": "Navigate the quantum grid field. Escape security barriers utilizing color shields and hyper boosters on a fully compatible retro KaiOS setup.",
-  "launch_path": "/Chronobee/index.html",
+  "launch_path": "/index.html",
   "icons": {
-    "56": "/Chronobee/icons/icon-56.png",
-    "112": "/Chronobee/icons/icon-112.png",
-    "128": "/chronobee/icons/icon-128.png",
-    "512": "/Chronobee/icons/icon-512.png"
+    "56": "/icons/icon-56.png",
+    "112": "/icons/icon-112.png",
+    "128": "/icons/icon-128.png",
+    "512": "/icons/icon-512.png"
   },
   "developer": {
     "name": "KaiOSphere Games",

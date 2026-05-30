@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import http from 'https';
+import babel from '@babel/core';
 
 const __dirname = path.resolve();
 
@@ -147,13 +148,30 @@ downloadFile(phaserCdnUrl, phaserDestPath, (err) => {
 
   fs.writeFileSync(path.join(distDir, 'index.html'), cleanIndexHtml);
 
-  // 3. COPY APPLICATION SCRIPTS & STYLES (Stripping the modular import paths)
+  // 3. COPY APPLICATION SCRIPTS & STYLES (Stripping the modular import paths & Transpiling with Babel for Firefox 48 compatibility)
   let mainJsContent = fs.readFileSync(path.join(__dirname, 'src', 'main.js'), 'utf-8');
   // KaiOS packaged apps don't support ES module structures by default unless bundled, so we serve as a standard script.
   // We remove any dynamic imports / browser modules which aren't in vanilla scope.
   // Any module imports are stripped or replaced
   mainJsContent = mainJsContent.replace("import './index.css';", "");
-  fs.writeFileSync(path.join(distSrcDir, 'main.js'), mainJsContent);
+
+  console.log('Transpiling main.js with Babel to target Firefox 48...');
+  try {
+    const babelResult = babel.transformSync(mainJsContent, {
+      presets: [
+        ['@babel/preset-env', {
+          targets: {
+            firefox: '48'
+          }
+        }]
+      ]
+    });
+    fs.writeFileSync(path.join(distSrcDir, 'main.js'), babelResult.code);
+    console.log('Successfully transpiled main.js for Firefox 48.');
+  } catch (err) {
+    console.error('Babel transpilation failed, writing fallback un-transpiled code:', err);
+    fs.writeFileSync(path.join(distSrcDir, 'main.js'), mainJsContent);
+  }
 
   // Copy CSS styles
   const cssContent = fs.readFileSync(path.join(__dirname, 'src', 'index.css'), 'utf-8');
