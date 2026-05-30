@@ -239,8 +239,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let particles = [];
   
   // --- MULTI-GAME CARTRIDGES SELECT SYSTEM ---
-  let appMode = 'LAUNCHER'; // 'LAUNCHER' | 'CHRONOBEE' | 'DECRYPTOR'
-  let launcherSelection = 0; // 0 = ChronoBee, 1 = Grid Decryptor
+  let appMode = 'LAUNCHER'; // 'LAUNCHER' | 'CHRONOBEE' | 'DECRYPTOR' | 'INTERCEPTOR'
+  let launcherSelection = 0; // 0 = ChronoBee, 1 = Grid Decryptor, 2 = Neon Interceptor
 
   // --- GRID DECRYPTOR (LOGICAL PUZZLE SYSTEM) ---
   let decryptorGrid = [];
@@ -251,6 +251,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let decryptorLevel = 1;
   let decryptorState = 'START'; // 'PLAYING' | 'GAMEOVER'
   let lastDecryptTimeTick = 0;
+
+  // --- NEON INTERCEPTOR (RETRO ACTION SHOOTER) ---
+  let interceptorShipX = 120;
+  let interceptorShipY = 240;
+  let interceptorLevel = 1;
+  let interceptorScore = 0;
+  let interceptorShield = 100;
+  let interceptorBullets = [];
+  let interceptorEnemies = [];
+  let interceptorExplosions = [];
+  let interceptorShootCooldown = 0;
+  let interceptorState = 'START'; // 'START' | 'PLAYING' | 'GAMEOVER'
+  let interceptorEnemiesDefeated = 0;
+  let interceptorLastSpawnTime = 0;
 
   const baseShapePorts = {
     0: [0, 2], // │ Vertical
@@ -348,6 +362,16 @@ document.addEventListener('DOMContentLoaded', () => {
         player.visible = false;
       }
       updateDecryptor();
+      return;
+    }
+
+    if (appMode === 'INTERCEPTOR') {
+      if (player && player.body) {
+        player.body.velocity.y = 0;
+        player.body.gravity.y = 0;
+        player.visible = false;
+      }
+      updateInterceptor();
       return;
     }
 
@@ -548,6 +572,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    if (appMode === 'INTERCEPTOR') {
+      renderInterceptor(ctx);
+      return;
+    }
+
     // 2. Render lasers barriers dynamically
     lasers.forEach(laser => {
       const col = getHex(laser.color);
@@ -736,8 +765,10 @@ document.addEventListener('DOMContentLoaded', () => {
       resetLogic();
       currentGameState = 'START';
       if (lblSoftLeft) lblSoftLeft.textContent = 'MENU';
-    } else {
+    } else if (launcherSelection === 1) {
       initDecryptorGame();
+    } else if (launcherSelection === 2) {
+      initInterceptorGame();
     }
     playSound('jump');
   }
@@ -893,6 +924,345 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // --- NEON INTERCEPTOR CUSTOM SHOOTER ENGINE ---
+
+  function initInterceptorGame() {
+    appMode = 'INTERCEPTOR';
+    interceptorState = 'PLAYING';
+    interceptorScore = 0;
+    interceptorShield = 100;
+    interceptorLevel = 1;
+    interceptorEnemiesDefeated = 0;
+    interceptorLastSpawnTime = Date.now();
+    interceptorShipX = 120;
+    interceptorShipY = 240;
+    interceptorBullets = [];
+    interceptorEnemies = [];
+    interceptorExplosions = [];
+    interceptorShootCooldown = 0;
+    
+    if (lblSoftLeft) lblSoftLeft.textContent = 'MENU';
+    if (lblSoftRight) lblSoftRight.textContent = 'SOUND ON';
+  }
+
+  function updateInterceptor() {
+    if (interceptorState !== 'PLAYING') return;
+
+    if (interceptorShootCooldown > 0) {
+      interceptorShootCooldown--;
+    }
+
+    // Spawn kinetic enemies
+    const now = Date.now();
+    const spawnInterval = Math.max(350, 1500 - (interceptorLevel * 140));
+    if (now - interceptorLastSpawnTime >= spawnInterval) {
+      interceptorLastSpawnTime = now;
+      
+      const typeRand = game.rnd.frac();
+      let type = 'DRIFTER'; // Cyan
+      let color = 'CYAN';
+      let hp = 1;
+      let speed = game.rnd.realInRange(0.9, 1.5) + (interceptorLevel * 0.12);
+      
+      if (typeRand > 0.70) {
+        type = 'SWARMER'; // Magenta
+        color = 'MAGENTA';
+        hp = 1;
+        speed = game.rnd.realInRange(1.6, 2.4) + (interceptorLevel * 0.15);
+      } else if (typeRand > 0.40) {
+        type = 'TANK'; // Yellow
+        color = 'YELLOW';
+        hp = 2;
+        speed = game.rnd.realInRange(0.5, 0.9) + (interceptorLevel * 0.08);
+      }
+      
+      interceptorEnemies.push({
+        x: game.rnd.between(20, 220),
+        y: -10,
+        type: type,
+        color: color,
+        hp: hp,
+        maxHp: hp,
+        speed: speed,
+        pulseOffset: game.rnd.frac() * 20,
+        width: 14,
+        height: 14
+      });
+    }
+
+    // Process bullet positions
+    for (let i = interceptorBullets.length - 1; i >= 0; i--) {
+      const b = interceptorBullets[i];
+      b.y -= 6;
+      if (b.y < -12) {
+        interceptorBullets.splice(i, 1);
+      }
+    }
+
+    // Process enemy behaviors and collisions
+    for (let i = interceptorEnemies.length - 1; i >= 0; i--) {
+      const e = interceptorEnemies[i];
+      
+      if (e.type === 'SWARMER') {
+        e.y += e.speed;
+        e.x += Math.sin((frameCount + e.pulseOffset) * 0.08) * 2;
+        e.x = Math.max(15, Math.min(225, e.x));
+      } else {
+        e.y += e.speed;
+      }
+
+      // Check bullet collision
+      for (let j = interceptorBullets.length - 1; j >= 0; j--) {
+        const b = interceptorBullets[j];
+        const distBullet = Math.hypot(e.x - b.x, e.y - b.y);
+        if (distBullet < 12) {
+          e.hp--;
+          createInterceptorSparks(b.x, b.y, e.color, 6);
+          interceptorBullets.splice(j, 1);
+          playSound('phase');
+          
+          if (e.hp <= 0) {
+            createInterceptorSparks(e.x, e.y, e.color, 18);
+            interceptorEnemies.splice(i, 1);
+            interceptorScore += e.type === 'TANK' ? 30 : 15;
+            interceptorEnemiesDefeated++;
+            playSound('pickup');
+            
+            if (interceptorEnemiesDefeated % 10 === 0) {
+              interceptorLevel++;
+              playSound('boost');
+              createInterceptorSparks(120, 150, 'GREEN', 35);
+            }
+            break;
+          }
+        }
+      }
+
+      // Screen exit penalty
+      if (e.y > 310) {
+        interceptorShield = Math.max(0, interceptorShield - 15);
+        interceptorEnemies.splice(i, 1);
+        playSound('damage');
+        if (interceptorShield <= 0) {
+          handleInterceptorGameOver();
+        }
+        continue;
+      }
+
+      // Direct collision check
+      const distShip = Math.hypot(e.x - interceptorShipX, e.y - interceptorShipY);
+      if (distShip < 18) {
+        interceptorShield = Math.max(0, interceptorShield - 25);
+        createInterceptorSparks(e.x, e.y, e.color, 20);
+        interceptorEnemies.splice(i, 1);
+        playSound('damage');
+        if (interceptorShield <= 0) {
+          handleInterceptorGameOver();
+        }
+      }
+    }
+
+    // Process custom particles updates
+    for (let i = interceptorExplosions.length - 1; i >= 0; i--) {
+      const p = interceptorExplosions[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+      if (p.life <= 0) {
+        interceptorExplosions.splice(i, 1);
+      }
+    }
+  }
+
+  function handleInterceptorGameOver() {
+    interceptorState = 'GAMEOVER';
+    playSound('gameover');
+    submitHighScore(interceptorScore);
+  }
+
+  function createInterceptorSparks(x, y, colorStr, count) {
+    const cols = {
+      'CYAN': '#00f0ff',
+      'MAGENTA': '#f43f5e',
+      'YELLOW': '#eab308',
+      'GREEN': '#22c55e',
+      'WHITE': '#ffffff'
+    };
+    const colHex = cols[colorStr] || '#00f0ff';
+    for (let i = 0; i < count; i++) {
+      const angle = game.rnd.realInRange(0, Math.PI * 2);
+      const speed = game.rnd.realInRange(1, 4.5);
+      interceptorExplosions.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: colHex,
+        life: game.rnd.integerInRange(15, 30)
+      });
+    }
+  }
+
+  function fireInterceptorBullet() {
+    if (interceptorShootCooldown > 0 || interceptorState !== 'PLAYING') return;
+    interceptorShootCooldown = 10; // Rate of fire
+    
+    interceptorBullets.push({ x: interceptorShipX - 5, y: interceptorShipY - 8 });
+    interceptorBullets.push({ x: interceptorShipX + 5, y: interceptorShipY - 8 });
+    
+    playSound('jump');
+    createInterceptorSparks(interceptorShipX, interceptorShipY - 10, 'WHITE', 2);
+  }
+
+  function renderInterceptor(ctx) {
+    ctx.fillStyle = '#02040a';
+    ctx.fillRect(0, 0, 240, 300);
+
+    // Top status HUD
+    ctx.fillStyle = '#0b0f19';
+    ctx.fillRect(0, 0, 240, 38);
+    ctx.strokeStyle = '#1a2333';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, 38, 240, 1);
+
+    // Score and Level details
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = '#10b981';
+    ctx.fillText(`SCORE: ${interceptorScore}`, 8, 16);
+    ctx.fillText(`LVL: ${interceptorLevel}`, 8, 28);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#00f0ff';
+    ctx.fillText(`SHIELD: ${interceptorShield}%`, 232, 16);
+
+    // Backing health meter track
+    ctx.fillStyle = '#311010';
+    ctx.fillRect(110, 21, 120, 5);
+    ctx.fillStyle = interceptorShield > 35 ? '#00f0ff' : '#f43f5e';
+    ctx.fillRect(110, 21, Math.floor(120 * (interceptorShield / 100)), 5);
+
+    // Draw horizontal grid horizon in parallax
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.05)';
+    ctx.lineWidth = 1;
+    for (let y = 40; y < 300; y += 26) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(240, y);
+      ctx.stroke();
+    }
+    for (let x = 0; x <= 240; x += 30) {
+      ctx.beginPath();
+      ctx.moveTo(x, 40);
+      ctx.lineTo(x, 300);
+      ctx.stroke();
+    }
+
+    // Draw custom bursts
+    interceptorExplosions.forEach(p => {
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+    });
+
+    // Draw bullets
+    interceptorBullets.forEach(b => {
+      ctx.fillStyle = '#00f0ff';
+      ctx.fillRect(b.x - 1.5, b.y - 4, 3, 8);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(b.x - 0.5, b.y - 3, 1, 6);
+    });
+
+    // Draw enemies with stylish wireframe features
+    interceptorEnemies.forEach(e => {
+      const col = e.color === 'CYAN' ? '#00f0ff' : (e.color === 'MAGENTA' ? '#f43f5e' : '#eab308');
+      
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      ctx.fillStyle = e.hp > 1 ? '#ffffff' : col;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (e.type === 'TANK') {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(e.x - 8, e.y - 8, 16, 16);
+      } else if (e.type === 'SWARMER') {
+        ctx.beginPath();
+        ctx.moveTo(e.x - 9, e.y);
+        ctx.lineTo(e.x + 9, e.y);
+        ctx.moveTo(e.x, e.y - 4);
+        ctx.lineTo(e.x, e.y + 4);
+        ctx.stroke();
+      }
+    });
+
+    // Draw Player Ship (vector futuristic jet delta pattern)
+    if (interceptorState === 'PLAYING') {
+      const sx = interceptorShipX;
+      const sy = interceptorShipY;
+
+      ctx.fillStyle = frameCount % 2 === 0 ? '#f97316' : '#eab308';
+      ctx.beginPath();
+      ctx.moveTo(sx - 4, sy + 8);
+      ctx.lineTo(sx, sy + 13 + (game.rnd.frac() * 3));
+      ctx.lineTo(sx + 4, sy + 8);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - 9);
+      ctx.lineTo(sx - 8, sy + 8);
+      ctx.lineTo(sx + 8, sy + 8);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - 4);
+      ctx.lineTo(sx - 4, sy + 5);
+      ctx.lineTo(sx + 4, sy + 5);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#f43f5e';
+      ctx.fillRect(sx - 8, sy + 2, 2, 4);
+      ctx.fillRect(sx + 6, sy + 2, 2, 4);
+    }
+
+    if (interceptorState === 'GAMEOVER') {
+      ctx.fillStyle = 'rgba(5, 7, 15, 0.95)';
+      ctx.fillRect(0, 0, 240, 300);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText('SHIELD CORE CRITICAL', 120, 85);
+      
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '9px monospace';
+      ctx.fillText('NEON INTERCEPTOR BREACHED', 120, 105);
+
+      ctx.fillStyle = '#00f0ff';
+      ctx.font = 'bold 36px system-ui';
+      ctx.fillText(`${interceptorScore}`, 120, 160);
+      ctx.font = '9px monospace';
+      ctx.fillStyle = '#475569';
+      ctx.fillText('ROGUE PLASMA DEFEATED SECURELY', 120, 178);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '9px sans-serif';
+      ctx.fillText('PRESS CENTER OR OK TO TRY AGAIN', 120, 222);
+      ctx.fillText('PRESS [F1] / MENU TO EXIT TO MENU', 120, 236);
+    }
+  }
+
   function renderLauncher(ctx) {
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, 240, 300);
@@ -910,51 +1280,67 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 15px system-ui';
-    ctx.fillText('SYSTEM CARTRIDGES', 120, 68);
+    ctx.fillText('SYSTEM CARTRIDGES', 120, 62);
 
     ctx.fillStyle = '#475569';
     ctx.font = '8px monospace';
-    ctx.fillText('SELECT ACTIVE MODULE', 120, 82);
+    ctx.fillText('SELECT ACTIVE CARTRIDGE', 120, 74);
 
-    // Bee Cart ridge Selector
+    // Cartridge 1: Chrono-Bee Selector (Compact position)
     const activeChrono = launcherSelection === 0;
     ctx.fillStyle = activeChrono ? 'rgba(0, 240, 255, 0.12)' : '#070b13';
-    ctx.fillRect(20, 105, 200, 52);
+    ctx.fillRect(20, 95, 200, 44);
     ctx.strokeStyle = activeChrono ? '#00f0ff' : '#1e293b';
     ctx.lineWidth = activeChrono ? 1.5 : 1;
-    ctx.strokeRect(20, 105, 200, 52);
+    ctx.strokeRect(20, 95, 200, 44);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = activeChrono ? '#ffffff' : '#9ca3af';
-    ctx.font = 'bold 11px system-ui';
-    ctx.fillText('1.  🐝 CHRONO-BEE GRID', 30, 126);
-    ctx.fillStyle = '#64748b';
-    ctx.font = '8px monospace';
-    ctx.fillText('Velocity Flapper. Action Matrix.', 30, 142);
+    ctx.font = 'bold 10px system-ui';
+    ctx.fillText('1.  🐝 CHRONO-BEE GRID', 28, 112);
+    ctx.fillStyle = '#526175';
+    ctx.font = '7.5px monospace';
+    ctx.fillText('Action Flapper. Phase Shift Laser matrix.', 28, 126);
 
-    // Decryptor Cart selector
+    // Cartridge 2: Decryptor Cart selector
     const activeDecryptor = launcherSelection === 1;
     ctx.fillStyle = activeDecryptor ? 'rgba(16, 185, 129, 0.12)' : '#070b13';
-    ctx.fillRect(20, 175, 200, 52);
+    ctx.fillRect(20, 147, 200, 44);
     ctx.strokeStyle = activeDecryptor ? '#10b981' : '#1e293b';
     ctx.lineWidth = activeDecryptor ? 1.5 : 1;
-    ctx.strokeRect(20, 175, 200, 52);
+    ctx.strokeRect(20, 147, 200, 44);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = activeDecryptor ? '#ffffff' : '#9ca3af';
-    ctx.font = 'bold 11px system-ui';
-    ctx.fillText('2.  ⚡ GRID DECRYPTOR', 30, 196);
-    ctx.fillStyle = '#64748b';
-    ctx.font = '8px monospace';
-    ctx.fillText('Logical Connect. Path Hack Puzzle.', 30, 212);
+    ctx.font = 'bold 10px system-ui';
+    ctx.fillText('2.  ⚡ GRID DECRYPTOR', 28, 164);
+    ctx.fillStyle = '#526175';
+    ctx.font = '7.5px monospace';
+    ctx.fillText('Logical wire rotate connection puzzle.', 28, 178);
+
+    // Cartridge 3: Neon Interceptor selector
+    const activeInterceptor = launcherSelection === 2;
+    ctx.fillStyle = activeInterceptor ? 'rgba(139, 92, 246, 0.12)' : '#070b13';
+    ctx.fillRect(20, 199, 200, 44);
+    ctx.strokeStyle = activeInterceptor ? '#8b5cf6' : '#1e293b';
+    ctx.lineWidth = activeInterceptor ? 1.5 : 1;
+    ctx.strokeRect(20, 199, 200, 44);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = activeInterceptor ? '#ffffff' : '#9ca3af';
+    ctx.font = 'bold 10px system-ui';
+    ctx.fillText('3.  🚀 NEON INTERCEPTOR', 28, 216);
+    ctx.fillStyle = '#526175';
+    ctx.font = '7.5px monospace';
+    ctx.fillText('Futuristic action sci-fi vertical shooter.', 28, 230);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#9ca3af';
     ctx.font = '8px sans-serif';
-    ctx.fillText('USE ARROWS ▲/▼ TO HIGHLIGHT', 120, 248);
+    ctx.fillText('USE ARROWS ▲/▼ TO HIGHLIGHT', 120, 264);
     ctx.fillStyle = '#22c55e';
     ctx.font = 'bold 8px monospace';
-    ctx.fillText('PRESS CENTER OK TO UNLEASH', 120, 262);
+    ctx.fillText('PRESS CENTER OK TO UNLEASH', 120, 276);
   }
 
   function renderDecryptor(ctx) {
@@ -1340,12 +1726,12 @@ document.addEventListener('DOMContentLoaded', () => {
       switch (key) {
         case 'ArrowUp':
         case '2':
-          launcherSelection = 0;
+          launcherSelection = (launcherSelection - 1 + 3) % 3;
           playSound('jump');
           break;
         case 'ArrowDown':
         case '8':
-          launcherSelection = 1;
+          launcherSelection = (launcherSelection + 1) % 3;
           playSound('jump');
           break;
         case '1':
@@ -1356,11 +1742,65 @@ document.addEventListener('DOMContentLoaded', () => {
           launcherSelection = 1;
           launchSelectedCart();
           break;
+        case '3':
+          launcherSelection = 2;
+          launchSelectedCart();
+          break;
         case 'Enter':
         case '5':
         case ' ':
         case 'SoftLeft':
           launchSelectedCart();
+          break;
+        case 'SoftRight':
+          handleMuteToggle();
+          break;
+        default:
+          break;
+      }
+      return;
+    }
+
+    if (appMode === 'INTERCEPTOR') {
+      if (interceptorState === 'GAMEOVER') {
+        if (key === 'SoftLeft') {
+          appMode = 'LAUNCHER';
+          if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+          playSound('phase');
+        } else if (key === 'Enter' || key === '5' || key === ' ' || key === 'SoftLeft') {
+          initInterceptorGame();
+        } else if (key === 'SoftRight') {
+          handleMuteToggle();
+        }
+        return;
+      }
+
+      switch (key) {
+        case 'ArrowUp':
+        case '2':
+          interceptorShipY = Math.max(50, interceptorShipY - 9);
+          break;
+        case 'ArrowDown':
+        case '8':
+          interceptorShipY = Math.min(275, interceptorShipY + 9);
+          break;
+        case 'ArrowLeft':
+        case '4':
+          interceptorShipX = Math.max(15, interceptorShipX - 9);
+          break;
+        case 'ArrowRight':
+        case '6':
+          interceptorShipX = Math.min(225, interceptorShipX + 9);
+          break;
+        case 'Enter':
+        case '5':
+        case ' ':
+          fireInterceptorBullet();
+          break;
+        case 'SoftLeft':
+          appMode = 'LAUNCHER';
+          if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+          playSound('phase');
           break;
         case 'SoftRight':
           handleMuteToggle();
