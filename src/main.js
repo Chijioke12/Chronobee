@@ -518,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (shieldLevel <= 0) {
       shieldLevel = 0;
       currentGameState = 'GAMEOVER';
-      if (lblSoftLeft) lblSoftLeft.textContent = 'RETRY';
+      if (lblSoftLeft) lblSoftLeft.textContent = 'MENU';
       playSound('gameover');
       submitHighScore(score);
     }
@@ -722,8 +722,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       ctx.fillStyle = '#ffffff';
       ctx.font = '9px sans-serif';
-      ctx.fillText('PRESS [F1] OR TOUCH RESTART', 120, 195);
-      ctx.fillText('TO REBOOT MATRIX BARRIERS SAFETY', 120, 210);
+      ctx.fillText('PRESS CENTER OR OK KEY TO RETRY', 120, 195);
+      ctx.fillText('PRESS [F1] / MENU TO EXIT TO MENU', 120, 210);
     }
   }
 
@@ -1248,7 +1248,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    if (lblSoftLeft) lblSoftLeft.textContent = 'RESTART';
+    if (lblSoftLeft) lblSoftLeft.textContent = 'MENU';
     if (syncStatus) {
       syncStatus.textContent = 'ONLINE';
       syncStatus.className = 'text-green glow-text';
@@ -1466,16 +1466,10 @@ document.addEventListener('DOMContentLoaded', () => {
           performDash();
           break;
         case 'SoftLeft':
-          if (currentGameState === 'START' || currentGameState === 'GAMEOVER') {
-            appMode = 'LAUNCHER';
-            if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
-            if (player) player.visible = false;
-            playSound('phase');
-          } else {
-            resetLogic();
-            currentGameState = 'PLAYING';
-            playSound('jump');
-          }
+          appMode = 'LAUNCHER';
+          if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+          if (player) player.visible = false;
+          playSound('phase');
           break;
         case 'SoftRight':
           handleMuteToggle();
