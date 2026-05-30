@@ -260,6 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let particles = [];
   
   // --- MULTI-GAME CARTRIDGES SELECT SYSTEM ---
+  const keysPressed = {};
   let appMode = 'LAUNCHER'; // 'LAUNCHER' | 'CHRONOBEE' | 'DECRYPTOR' | 'INTERCEPTOR' | 'CLIMBER'
   let launcherSelection = 0; // 0 = ChronoBee, 1 = Grid Decryptor, 2 = Neon Interceptor, 3 = Doodle Climber
 
@@ -1001,6 +1002,23 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateInterceptor() {
     if (interceptorState !== 'PLAYING') return;
 
+    // Continuous movement checking for ultra-sleek action shooter performance
+    if (keysPressed['ArrowLeft'] || keysPressed['4'] || keysPressed['Left']) {
+      interceptorShipX = Math.max(15, interceptorShipX - 3.5);
+    } else if (keysPressed['ArrowRight'] || keysPressed['6'] || keysPressed['Right']) {
+      interceptorShipX = Math.min(225, interceptorShipX + 3.5);
+    }
+    if (keysPressed['ArrowUp'] || keysPressed['2'] || keysPressed['Up']) {
+      interceptorShipY = Math.max(50, interceptorShipY - 3.5);
+    } else if (keysPressed['ArrowDown'] || keysPressed['8'] || keysPressed['Down']) {
+      interceptorShipY = Math.min(275, interceptorShipY + 3.5);
+    }
+
+    // Continuously blast when central / fire keys are loaded
+    if (keysPressed['Enter'] || keysPressed['5'] || keysPressed[' ']) {
+      fireInterceptorBullet();
+    }
+
     if (interceptorShootCooldown > 0) {
       interceptorShootCooldown--;
     }
@@ -1442,6 +1460,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateClimber() {
     if (climberState !== 'PLAYING') return;
+
+    // Fluid continuous keyboard / pad hold checking (no repetitive tap syndrome)
+    if (keysPressed['ArrowLeft'] || keysPressed['4'] || keysPressed['Left']) {
+      climberVx = Math.max(-5.5, climberVx - 0.75);
+    } else if (keysPressed['ArrowRight'] || keysPressed['6'] || keysPressed['Right']) {
+      climberVx = Math.min(5.5, climberVx + 0.75);
+    }
+
+    // Continuously fire the laser weapon when fire button is held down
+    if (keysPressed['ArrowUp'] || keysPressed['2'] || keysPressed['Enter'] || keysPressed['5'] || keysPressed[' '] || keysPressed['Up']) {
+      fireClimberLaser();
+    }
 
     if (climberJetpackTimer > 0) {
       climberJetpackTimer--;
@@ -2562,7 +2592,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Key Event listener
+  // Key Event listeners (keydown and keyup trackers for smooth fluid holds)
   window.addEventListener('keydown', (e) => {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Spacebar'].includes(e.key)) {
       e.preventDefault();
@@ -2592,7 +2622,24 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => btnNode.classList.remove('active-press'), 120);
     }
 
+    // Mark key as held down
+    keysPressed[mapped] = true;
+    keysPressed[e.key] = true;
+
     routeKeys(mapped);
+  });
+
+  window.addEventListener('keyup', (e) => {
+    let mapped = e.key;
+    if (e.key === 'F1' || e.key === 'Control') {
+      mapped = 'SoftLeft';
+    } else if (e.key === 'F2' || e.key === 'Alt') {
+      mapped = 'SoftRight';
+    }
+
+    // Mark key as released
+    keysPressed[mapped] = false;
+    keysPressed[e.key] = false;
   });
 
   // Browser diagnostics utility function
@@ -2725,11 +2772,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Physical mouse controller setups
+  // Physical mouse and touch controller setups for smooth hold action
   keypadButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = btn.getAttribute('data-key');
+    const target = btn.getAttribute('data-key');
+
+    const handlePressStart = (e) => {
+      if (e && typeof e.preventDefault === 'function') {
+        try { e.preventDefault(); } catch(err) {}
+      }
+      keysPressed[target] = true;
       routeKeys(target);
-    });
+    };
+
+    const handlePressEnd = (e) => {
+      if (e && typeof e.preventDefault === 'function') {
+        try { e.preventDefault(); } catch(err) {}
+      }
+      keysPressed[target] = false;
+    };
+
+    btn.addEventListener('mousedown', handlePressStart);
+    btn.addEventListener('touchstart', handlePressStart, { passive: false });
+    btn.addEventListener('mouseup', handlePressEnd);
+    btn.addEventListener('mouseleave', handlePressEnd);
+    btn.addEventListener('touchend', handlePressEnd, { passive: false });
   });
 });
