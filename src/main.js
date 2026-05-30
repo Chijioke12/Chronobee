@@ -1,5 +1,26 @@
 // ChronoBee: KaiOS Quantum Energy Grid - Powered by Phaser 2 CE
 
+// Polyfill for CanvasRenderingContext2D.prototype.roundRect for older browser/KaiOS compatibility
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, radii) {
+    if (radii === undefined) radii = 0;
+    let r = 0;
+    if (Array.isArray(radii)) {
+      r = radii[0] || 0;
+    } else {
+      r = radii;
+    }
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y, x + w, y + h, r);
+    this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r);
+    this.arcTo(x, y, x + w, y, r);
+    return this;
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements for metadata and synchronization
   const statusBarTime = document.getElementById('statusBarTime');
