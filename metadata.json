@@ -1,0 +1,6 @@
+{
+  "name": "ChronoBee: KaiOS Game",
+  "description": "Unique retro 240x320 dual-phase Flappy Glider game inspired by KaiOS phone layouts, with custom energy mechanics and a fully clickable control pad.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

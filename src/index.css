@@ -1,0 +1,596 @@
+:root {
+  --bg-dark: #090d16;
+  --bg-card: #121824;
+  --bg-bezel: #1b1e27;
+  --accent-gold: #ff9f1c;
+  --accent-cyan: #00f0ff;
+  --accent-magenta: #ff007f;
+  --accent-green: #10b981;
+  --text-main: #f3f4f6;
+  --text-muted: #9ca3af;
+  --border-glow: #222b3e;
+  --phone-width: 290px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-dark);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(16, 24, 48, 0.4) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(255, 0, 127, 0.05) 0px, transparent 50%);
+  color: var(--text-main);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* App layout splitting instructions, phone, and leaderboard score boxes */
+.app-layout {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2rem;
+  max-width: 1100px;
+  width: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+/* Side Info Panels */
+.side-panel {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glow);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 320px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.instructions-panel {
+  order: 1;
+}
+
+.scores-panel {
+  order: 3;
+}
+
+.side-header h2 {
+  font-size: 1.5rem;
+  margin: 0;
+  color: var(--accent-gold);
+  letter-spacing: -0.025em;
+  font-weight: 800;
+}
+
+.side-header .subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.logo-emoji {
+  font-size: 2.2rem;
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}
+
+.instruction-section h3, 
+.stat-box-container h3, 
+.leaderboard-box h3,
+.gameplay-stats-box h3 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px dashed var(--border-glow);
+  padding-bottom: 0.5rem;
+  margin: 0 0 0.75rem 0;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Control representations styled as actual hardware caps */
+kbd {
+  background: #2b334a;
+  color: var(--text-main);
+  border-radius: 4px;
+  border: 1px solid #4a5a7d;
+  box-shadow: 0 1.5px 0 #1b2030;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+  font-family: monospace;
+}
+
+.control-list, .rules-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.control-list li {
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-list li strong {
+  margin-left: auto;
+  color: var(--text-main);
+}
+
+.rules-list li {
+  margin-bottom: 0.75rem;
+  color: var(--text-muted);
+}
+
+.rules-list li strong {
+  color: #fff;
+  display: block;
+  font-size: 0.85rem;
+}
+
+/* Leaderboard */
+.leaderboard-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.leaderboard-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.3rem;
+  background: rgba(255,255,255,0.02);
+  border-left: 3px solid transparent;
+}
+
+.leaderboard-list li.loading {
+  color: var(--text-muted);
+  font-style: italic;
+  justify-content: center;
+}
+
+.leaderboard-list li:nth-child(1) {
+  border-left-color: gold;
+  background: rgba(255, 215, 0, 0.05);
+  font-weight: bold;
+}
+.leaderboard-list li:nth-child(2) {
+  border-left-color: silver;
+  background: rgba(192, 192, 192, 0.05);
+}
+.leaderboard-list li:nth-child(3) {
+  border-left-color: #cd7f32;
+  background: rgba(205, 127, 50, 0.05);
+}
+
+.leaderboard-list .score-val {
+  font-family: monospace;
+  font-weight: bold;
+  color: var(--accent-gold);
+}
+
+/* Stat Box Container values */
+.stat-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-line span:first-child {
+  color: var(--text-muted);
+}
+
+.stat-line span:last-child {
+  font-weight: bold;
+  font-family: monospace;
+}
+
+/* Colors and custom helper outputs */
+.text-green { color: var(--accent-green); }
+.text-orange { color: var(--accent-gold); }
+.text-cyan { color: var(--accent-cyan); }
+.glow-text {
+  text-shadow: 0 0 5px rgba(16, 185, 129, 0.5);
+}
+
+/* Cyber decorative elements */
+.cyber-decorative-grid {
+  margin-top: auto;
+  padding: 0.75rem;
+  background: rgba(0,0,0,0.25);
+  border: 1px dashed var(--border-glow);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.pixel-decor-text {
+  font-family: monospace;
+  font-size: 0.65rem;
+  color: #4b5e86;
+  letter-spacing: 0.05em;
+}
+
+/* CENTER: Physical Telephone Frame Design (KaiOS phone emulator) */
+.phone-wrapper {
+  order: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.kai-phone {
+  background: var(--bg-bezel);
+  border-radius: 40px;
+  width: var(--phone-width);
+  padding: 1.5rem 1rem 1.8rem 1rem;
+  box-shadow: 
+    0px 0px 0px 4px #2c313d, /* Bezel ring edge */
+    0px 15px 35px rgba(0, 0, 0, 0.7),
+    inset 0 2px 4px rgba(255, 255, 255, 0.1),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.5);
+  border: 4px solid #11131a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.phone-earpiece {
+  width: 50px;
+  height: 6px;
+  background: #11131a;
+  border-radius: 10px;
+  margin-bottom: 0.4rem;
+  border-bottom: 1.5px solid #2f3542;
+}
+
+.phone-brand {
+  font-size: 0.65rem;
+  font-family: system-ui;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: #57606f;
+  margin-bottom: 0.6rem;
+}
+
+/* Strictly-regulated 240x320 physical screen container */
+.screen-frame {
+  width: 240px;
+  height: 320px;
+  background: #000;
+  border-radius: 8px;
+  border: 3.5px solid #15181f;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Screen status bar: 20px height */
+.status-bar {
+  height: 20px;
+  background: #0d121c;
+  border-bottom: 1px solid #1c2635;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-family: monospace;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.network-type {
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+/* Canvas container enclosing playspace & softkey indicators (280px + 20px = 300px + 20px status bar = 320px) */
+.canvas-container {
+  height: 300px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+#gameCanvas {
+  background: #050b14;
+  display: block;
+}
+
+/* Footer simulated softkeys: 20px height */
+.softkey-indicators {
+  height: 20px;
+  background: #0e1420;
+  border-top: 1px solid #1c2635;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.4rem;
+  box-sizing: border-box;
+  font-size: 8px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #7d8ea5;
+  text-shadow: 0 1px 1px #000;
+  z-index: 10;
+}
+
+.softkey-center-indicator {
+  color: #fff;
+  border: 1px solid #2c3b53;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  background: #172133;
+}
+
+#lblSoftLeft {
+  color: var(--accent-cyan);
+}
+
+#lblSoftRight {
+  color: var(--accent-magenta);
+}
+
+/* Retro overlay design */
+.scanlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.15) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.05),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.05)
+  );
+  background-size: 100% 3px, 3px 100%;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.7);
+  z-index: 21;
+  pointer-events: none;
+  border-radius: 4px;
+}
+
+/* PHYSICAL CONTROL PAD AREA */
+.keypad-area {
+  width: 100%;
+  margin-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Styling standard button types representing physical buttons */
+.keypad-area button {
+  background: linear-gradient(180deg, #2c303c 0%, #1e2129 100%);
+  border: 1px solid #13151b;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+  font-family: system-ui;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.08s ease-in-out;
+  box-shadow: 
+    0 2px 0px #0b0c0f,
+    inset 0 1px 1px rgba(255,255,255,0.1);
+}
+
+.keypad-area button:active, 
+.keypad-area button.active-press {
+  transform: translateY(1.5px);
+  background: #16181f;
+  box-shadow: 
+    0 0.5px 0px #0b0c0f,
+    inset 0 0 6px rgba(0,0,0,0.6);
+  border-color: var(--accent-gold);
+}
+
+/* Softkeys top bar row */
+.softkeys-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.soft-btn {
+  width: 60px;
+  height: 24px;
+  font-size: 0.75rem !important;
+  font-weight: bold;
+}
+
+.spacer-key {
+  width: 80px;
+}
+
+/* Dynamic Dpad circular compass wrapper */
+.dpad-container {
+  align-self: center;
+  position: relative;
+  width: 106px;
+  height: 106px;
+  background: #101217;
+  border-radius: 50%;
+  border: 2px solid #232731;
+}
+
+.dpad-btn {
+  position: absolute !important;
+  font-size: 0.65rem !important;
+  border-radius: 4px !important;
+}
+
+.dpad-up {
+  top: 5px;
+  left: 36px;
+  width: 34px;
+  height: 26px;
+  border-radius: 4px 4px 0 0 !important;
+}
+
+.dpad-down {
+  bottom: 5px;
+  left: 36px;
+  width: 34px;
+  height: 26px;
+  border-radius: 0 0 4px 4px !important;
+}
+
+.dpad-left {
+  top: 36px;
+  left: 5px;
+  width: 26px;
+  height: 34px;
+  border-radius: 4px 0 0 4px !important;
+}
+
+.dpad-right {
+  top: 36px;
+  right: 5px;
+  width: 26px;
+  height: 34px;
+  border-radius: 0 4px 4px 0 !important;
+}
+
+/* OK button in absolute center */
+.dpad-center {
+  top: 34px;
+  left: 34px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50% !important;
+  background: linear-gradient(180deg, var(--accent-gold) 0%, #cc7a00 100%) !important;
+  border: 1px solid #663d00 !important;
+  font-weight: 800;
+  font-size: 0.8rem !important;
+  box-shadow: 
+    0 2px 0px #331f00,
+    inset 0 1px 1.5px rgba(255,255,255,0.4) !important;
+  color: #000 !important;
+}
+
+.dpad-center:active, .dpad-center.active-press {
+  background: #cc7a00 !important;
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.5) !important;
+}
+
+/* Cosmetic Call & End keys */
+.select-row .call-btn {
+  width: 50px;
+  height: 22px;
+  border-color: #2e7d32;
+  color: #4caf50;
+  font-size: 0.7rem;
+}
+
+.select-row .end-btn {
+  width: 50px;
+  height: 22px;
+  border-color: #c62828;
+  color: #e53935;
+  font-size: 0.7rem;
+}
+
+/* Standard Phone Number Pad 3x4 grid */
+.numeric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rrem 0.5rem;
+  width: 100%;
+}
+
+.num-btn {
+  height: 35px;
+  padding: 0.15rem !important;
+}
+
+.num-btn strong {
+  font-size: 0.95rem;
+  margin-top: -1px;
+}
+
+.num-btn .subtext {
+  font-size: 0.52rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: -1px;
+}
+
+/* Mobile responsive constraints stacking sides on medium/small viewports */
+@media (max-width: 900px) {
+  .app-layout {
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  
+  .side-panel {
+    max-width: var(--phone-width);
+    width: var(--phone-width);
+  }
+  
+  .instructions-panel {
+    order: 2;
+  }
+  
+  .phone-wrapper {
+    order: 1;
+  }
+  
+  .scores-panel {
+    order: 3;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.85; }
+}

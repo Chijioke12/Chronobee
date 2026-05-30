@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChronoBee: KaiOS Cyber Grid</title>
+    <link rel="stylesheet" href="/src/index.css" />
+    <!-- Load Phaser 2 Community Edition (Phaser CE) from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser-ce/2.20.0/phaser.min.js"></script>
+    <!-- Browser Compatibility Detector -->
+    <script>
+      (function() {
+        var unsupported = [];
+        if (typeof Promise === 'undefined') unsupported.push('Promise');
+        if (typeof fetch === 'undefined') unsupported.push('fetch');
+        if (!navigator.mozApps) unsupported.push('navigator.mozApps (KaiOS/Firefox OS App API)');
+        
+        if (unsupported.length > 0) {
+          console.warn("Compatibility warning:", unsupported.join(', '));
+          try {
+            alert("Warning: The following required features are not natively supported by your browser: \n" + unsupported.join('\n'));
+          } catch(e) {
+            console.error("Alert failed:", e);
+          }
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <!-- Main content frame wrapping the interactive phone console and informational layouts -->
+    <div class="app-layout">
+      <!-- Left side: Game Instructions & High Scores Info -->
+      <div class="side-panel instructions-panel" id="rulesPanel">
+        <div class="side-header">
+          <span class="logo-emoji">🐝</span>
+          <h2>ChronoBee Matrix</h2>
+          <p class="subtitle">KaiOS Quantum Edition</p>
+        </div>
+        
+        <div class="instruction-section">
+          <h3>🎮 KAI-PAD CONTROLS</h3>
+          <ul class="control-list">
+            <li><kbd>▲</kbd> or <kbd>5</kbd> or <kbd>2</kbd> : <strong>Flap / Rise Up</strong></li>
+            <li><kbd>▼</kbd> or <kbd>8</kbd> : <strong>Sonic Dive (Pulse Down)</strong></li>
+            <li><kbd>◀</kbd> or <kbd>4</kbd> : <strong>Toggle Color Shield (Magenta/Cyan)</strong></li>
+            <li><kbd>▶</kbd> or <kbd>6</kbd> : <strong>Hyper Booster Sprint</strong></li>
+            <li><kbd>Soft-Left</kbd> (╲) : <strong>Restart Game</strong></li>
+            <li><kbd>Soft-Right</kbd> (╱) : <strong>Mute Audio Toggle</strong></li>
+          </ul>
+        </div>
+
+        <div class="instruction-section">
+          <h3>⚡ MATRIX EXCEPTION LOGICS</h3>
+          <p>Standard Flappy rules are outdated. Escape the plasma engine grid utilizing tactical phase jumps:</p>
+          <ul class="rules-list">
+            <li><strong>Chrono-Phasing Matrices:</strong> Match your body aura to incoming grid lasers (Magenta or Cyan). Match perfectly to absorb power and score points safely. Complete mismatch triggers critical core damage!</li>
+            <li><strong>Shield Core Matrix (HP):</strong> You have a durable health buffer (100%). Scraping barriers, or laser mismatches drains fuel. Power up with energy cells floating in space.</li>
+            <li><strong>Anti-Gravity Spheres (Inverter):</strong> Flips current flight physics! Tap center key to pull down instead of up.</li>
+            <li><strong>Grid Braking System:</strong> Movement uses momentum. Slow down by steering left when obstacle gates are moving quickly!</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Center: Physical Phone Bezel with 240x320 Canvas -->
+      <div class="phone-wrapper">
+        <div class="kai-phone">
+          <div class="phone-earpiece"></div>
+          <div class="phone-brand">KAIOSPHERE v3</div>
+
+          <!-- Glass Screen Frame (holds 240x320 strictly) -->
+          <div class="screen-frame">
+            <!-- Simulated Phone Status Bar -->
+            <div class="status-bar">
+              <span class="status-left"><span class="network-type">LTE</span> 📶</span>
+              <span id="statusBarTime" class="status-time">12:46</span>
+              <span id="muteStatusIcon" class="status-right">🔊 100%</span>
+            </div>
+
+            <!-- The Game View Viewport (240x320 overall screen) -->
+            <div class="canvas-container">
+              <!-- Element where Phaser 2 CE inserts its canvas (240x280) -->
+              <div id="gameCanvas" style="width: 240px; height: 280px; overflow: hidden;"></div>
+              
+              <!-- Softkey indicators at footer of display screen -->
+              <div class="softkey-indicators">
+                <span id="lblSoftLeft">RESTART</span>
+                <span class="softkey-center-indicator">OK (JUMP)</span>
+                <span id="lblSoftRight">SOUND ON</span>
+              </div>
+            </div>
+            
+            <!-- CRT Overlays / Screen Glare for retro atmosphere -->
+            <div class="scanlines"></div>
+            <div class="vignette"></div>
+          </div>
+
+          <!-- Physical Interface Button Pad (Full Interactive Control Pad!) -->
+          <div class="keypad-area">
+            <!-- Row 1: Softkeys (re-routing click interactions seamlessly) -->
+            <div class="softkeys-row">
+              <button id="btnSoftLeft" class="soft-btn key-action" data-key="SoftLeft">╲</button>
+              <div class="spacer-key"></div>
+              <button id="btnSoftRight" class="soft-btn key-action" data-key="SoftRight">╱</button>
+            </div>
+
+            <!-- Row 2: Navigational D-Pad surrounding click action center -->
+            <div class="dpad-container">
+              <button id="btnDpadUp" class="dpad-btn dpad-up key-action" data-key="ArrowUp">▲</button>
+              <button id="btnDpadLeft" class="dpad-btn dpad-left key-action" data-key="ArrowLeft">◀</button>
+              <button id="btnDpadCenter" class="dpad-btn dpad-center key-action" data-key="Enter">OK</button>
+              <button id="btnDpadRight" class="dpad-btn dpad-right key-action" data-key="ArrowRight">▶</button>
+              <button id="btnDpadDown" class="dpad-btn dpad-down key-action" data-key="ArrowDown">▼</button>
+            </div>
+
+            <!-- Row 3: Standard call keys (cosmetic but tactile) -->
+            <div class="softkeys-row select-row">
+              <button id="btnCall" class="call-btn key-action" data-key="c">📞</button>
+              <div class="spacer-key"></div>
+              <button id="btnEnd" class="end-btn key-action" data-key="Escape">⮌</button>
+            </div>
+
+            <!-- Row 4-7: Interactive Tactile Keypad -->
+            <div class="numeric-grid">
+              <button class="num-btn key-action" data-key="1"><strong>1</strong><span class="subtext">o_o</span></button>
+              <button class="num-btn key-action" data-key="2"><strong>2</strong><span class="subtext">▲ JUMP</span></button>
+              <button class="num-btn key-action" data-key="3"><strong>3</strong><span class="subtext">DEF</span></button>
+              
+              <button class="num-btn key-action" data-key="4"><strong>4</strong><span class="subtext">◀ PHASE</span></button>
+              <button class="num-btn key-action" data-key="5"><strong>5</strong><span class="subtext">🔘 JUMP</span></button>
+              <button class="num-btn key-action" data-key="6"><strong>6</strong><span class="subtext">▶ BOOST</span></button>
+              
+              <button class="num-btn key-action" data-key="7"><strong>7</strong><span class="subtext">PQRS</span></button>
+              <button class="num-btn key-action" data-key="8"><strong>8</strong><span class="subtext">▼ DIVE</span></button>
+              <button class="num-btn key-action" data-key="9"><strong>9</strong><span class="subtext">WXYZ</span></button>
+              
+              <button class="num-btn key-action" data-key="*"><strong>*</strong><span class="subtext">MODE</span></button>
+              <button class="num-btn key-action" data-key="0"><strong>0</strong><span class="subtext">SPACE</span></button>
+              <button class="num-btn key-action" data-key="#"><strong>#</strong><span class="subtext">SCORE</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right side: High Scores & Server Active Stats Ledger -->
+      <div class="side-panel scores-panel" id="scorePanel">
+        <div class="stat-box-container">
+          <h3>⚡ CORE CONSOLE</h3>
+          <div class="stat-line">
+            <span>Grid Status:</span>
+            <span class="text-green glow-text">ONLINE</span>
+          </div>
+          <div class="stat-line">
+            <span>Model Ref:</span>
+            <span class="text-orange">KAIPHONE-8110_X</span>
+          </div>
+          <div class="stat-line">
+            <span>Telemetry:</span>
+            <span class="text-green glow-text" id="syncStatus">SYNCED</span>
+          </div>
+        </div>
+
+        <div class="leaderboard-box">
+          <h3>🏆 KAI-SERVER SCORES</h3>
+          <ul id="leaderboardList" class="leaderboard-list">
+            <li class="loading">Handshaking scores...</li>
+          </ul>
+        </div>
+
+        <div id="gameplayStats" class="gameplay-stats-box">
+          <h3>🔥 FLIGHT ANALYTICS</h3>
+          <div class="stat-line">
+            <span>Session Jumps:</span>
+            <span id="statJumps">0</span>
+          </div>
+          <div class="stat-line">
+            <span>Phase Swaps:</span>
+            <span id="statPhases">0</span>
+          </div>
+          <div class="stat-line">
+            <span>Max Score Combo:</span>
+            <span id="statCombo" class="text-cyan">0x</span>
+          </div>
+          <div class="stat-line">
+            <span>Shield Gained:</span>
+            <span id="statShieldsCollected" class="text-orange">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Load the main game module directly -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "kaios-cyber-bird",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "generate-assets": "node scripts/generate-assets.js",
+    "build": "node scripts/generate-assets.js && node scripts/build-kaios.js",
+    "lint": "echo 'No lint check needed for vanilla javascript'"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "express": "^4.21.2",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

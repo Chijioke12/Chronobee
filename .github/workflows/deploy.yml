@@ -1,0 +1,72 @@
+name: Build & Host ChronoBee Web/KaiOS Package
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Base Dependencies
+        run: npm ci || npm install
+
+      - name: Synthesize Procedural WAV Sound Assets & Resize Icons
+        run: npm run generate-assets
+
+      - name: Assemble Full-Screen Standalone KaiOS Package
+        run: npm run build
+
+      - name: Create Packed App Zip Archive for KaiOS Physical Loaders
+        run: |
+          cd dist
+          zip -r ../chronobee.zip . *
+          cd ..
+          echo "Standalone package chronobee.zip compiled."
+
+      - name: Upload KaiOS Built Package Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronobee-kaios-package
+          path: chronobee.zip
+
+      - name: Setup pages environment
+        uses: actions/configure-pages@v4
+
+      - name: Upload GitHub Pages Web Distribution Files
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Deploy compiled full-screen layout to GH Pages
+          path: 'dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy Standalone App build to GitHub Pages Hosted Endpoint
+        id: deployment
+        uses: actions/deploy-pages@v4

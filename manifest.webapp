@@ -1,0 +1,26 @@
+{
+  "name": "ChronoBee",
+  "description": "Navigate the quantum grid field. Escape security barriers utilizing color shields and hyper boosters on a fully compatible retro KaiOS setup.",
+  "launch_path": "/index.html",
+  "icons": {
+    "56": "/icons/icon-56.png",
+    "112": "/icons/icon-112.png",
+    "128": "/icons/icon-128.png",
+    "512": "/icons/icon-512.png"
+  },
+  "developer": {
+    "name": "KaiOSphere Games",
+    "url": "https://github.com/umachijioke7/chrono-bee"
+  },
+  "locales": {
+    "en-US": {
+      "name": "ChronoBee",
+      "subtitle": "Chrono-Phase Grid Glider",
+      "description": "Escape the quantum energy grid utilizing color phase-shifting."
+    }
+  },
+  "default_locale": "en-US",
+  "type": "web",
+  "theme_color": "#0d121c",
+  "fullscreen": "true"
+}
