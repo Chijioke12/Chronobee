@@ -69,17 +69,10 @@
 
           <!-- Glass Screen Frame (holds 240x320 strictly) -->
           <div class="screen-frame">
-            <!-- Simulated Phone Status Bar -->
-            <div class="status-bar">
-              <span class="status-left"><span class="network-type">LTE</span> 📶</span>
-              <span id="statusBarTime" class="status-time">12:46</span>
-              <span id="muteStatusIcon" class="status-right">🔊 100%</span>
-            </div>
-
             <!-- The Game View Viewport (240x320 overall screen) -->
             <div class="canvas-container">
-              <!-- Element where Phaser 2 CE inserts its canvas (240x280) -->
-              <div id="gameCanvas" style="width: 240px; height: 280px; overflow: hidden;"></div>
+              <!-- Element where Phaser 2 CE inserts its canvas (240x300 now) -->
+              <div id="gameCanvas" style="width: 240px; height: 300px; overflow: hidden;"></div>
               
               <!-- Softkey indicators at footer of display screen -->
               <div class="softkey-indicators">

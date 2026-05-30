@@ -117,16 +117,9 @@ downloadFile(phaserCdnUrl, phaserDestPath, (err) => {
   </head>
   <body>
     <div class="standalone-viewport">
-      <!-- Phone Status Bar -->
-      <div class="status-bar" style="border-radius: 0;">
-        <span class="status-left"><span class="network-type">LTE</span> 📶</span>
-        <span id="statusBarTime" class="status-time">12:46</span>
-        <span id="muteStatusIcon" class="status-right">🔊 100%</span>
-      </div>
-
-      <!-- Play area 240x280 (Status bar is 20px + Softkeys is 20px = 320px Total height) -->
-      <div class="canvas-container" style="height: 280px; overflow: hidden;">
-        <div id="gameCanvas" style="width: 240px; height: 280px; overflow: hidden;"></div>
+      <!-- Play area 240x300 (With no custom status bar, softkeys take 20px = 320px Total height) -->
+      <div class="canvas-container" style="height: 320px; overflow: hidden;">
+        <div id="gameCanvas" style="width: 240px; height: 300px; overflow: hidden;"></div>
         
         <!-- Softkey Footer indicators -->
         <div class="softkey-indicators">

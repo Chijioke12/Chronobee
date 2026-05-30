@@ -222,8 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadLeaderboard();
 
   // --- PHASER 2 CE GAME ENGINE INITIALIZATION ---
-  // Create 240x280 Phaser screen corresponding strictly to KAI-PAD viewport size
-  const game = new Phaser.Game(240, 280, Phaser.CANVAS, 'gameCanvas', {
+  // Create 240x300 Phaser screen corresponding strictly to KAI-PAD viewport size
+  const game = new Phaser.Game(240, 300, Phaser.CANVAS, 'gameCanvas', {
     preload: preload,
     create: create,
     update: update,
@@ -279,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
     for (let i = 0; i < 22; i++) {
       starfield.push({
         x: game.rnd.between(0, 240),
-        y: game.rnd.between(0, 280),
+        y: game.rnd.between(0, 300),
         speed: game.rnd.realInRange(0.15, 0.55),
         size: game.rnd.realInRange(0.5, 2),
         color: game.rnd.pick(['#1e293b', '#334155', '#475569'])
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
       star.x -= star.speed * (isDoubleSpeedDashing > 0 ? 3 : 1);
       if (star.x < 0) {
         star.x = 240;
-        star.y = game.rnd.between(0, 280);
+        star.y = game.rnd.between(0, 300);
       }
     });
 
@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Shield ceiling floor scrapes friction reductions
-    if (player.y - 10 <= 0 || player.y + 10 >= 280) {
+    if (player.y - 10 <= 0 || player.y + 10 >= 300) {
       shieldLevel -= 0.6;
       if (frameCount % 12 === 0) playSound('damage');
     }
@@ -368,14 +368,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (laser.floatingRangeY > 0) {
         const offset = Math.sin(frameCount * 0.04) * laser.floatingRangeY;
         laser.topHeight = laser.initialTopHeight + offset;
-        laser.bottomHeight = 280 - 72 - laser.topHeight; // Keeps gap at 72px strictly
+        laser.bottomHeight = 300 - 72 - laser.topHeight; // Keeps gap at 72px strictly
       }
 
       // Physics Intersections Checks
       const isOverlappingX = (player.x + 8 > laser.x && player.x - 8 < laser.x + laser.width);
       if (isOverlappingX) {
         const collidesTop = (player.y - 7 < laser.topHeight);
-        const collidesBottom = (player.y + 7 > 280 - laser.bottomHeight);
+        const collidesBottom = (player.y + 7 > 300 - laser.bottomHeight);
 
         if (collidesTop || collidesBottom) {
           if (phaseColor === laser.color) {
@@ -484,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Clear display buffer
     ctx.fillStyle = '#050b14';
-    ctx.fillRect(0, 0, 240, 280);
+    ctx.fillRect(0, 0, 240, 300);
 
     // 1. Draw star background
     starfield.forEach(star => {
@@ -508,13 +508,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Bottom anchor node
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(laser.x - 3, 280 - 8, laser.width + 6, 8);
+      ctx.fillRect(laser.x - 3, 300 - 8, laser.width + 6, 8);
 
       // Bottom glowing rod
       ctx.fillStyle = col;
-      ctx.fillRect(laser.x, 280 - laser.bottomHeight, laser.width, laser.bottomHeight - 8);
+      ctx.fillRect(laser.x, 300 - laser.bottomHeight, laser.width, laser.bottomHeight - 8);
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(laser.x + 5, 280 - laser.bottomHeight, 4, laser.bottomHeight - 8);
+      ctx.fillRect(laser.x + 5, 300 - laser.bottomHeight, 4, laser.bottomHeight - 8);
     });
 
     // 3. Render floating fuel capsules
@@ -620,7 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 7. Render UI overlays depending on engine phases
     if (currentGameState === 'START') {
       ctx.fillStyle = 'rgba(5, 11, 20, 0.88)';
-      ctx.fillRect(0, 0, 240, 280);
+      ctx.fillRect(0, 0, 240, 300);
 
       ctx.textAlign = 'center';
       ctx.fillStyle = getHex('CYAN');
@@ -647,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.fill();
     } else if (currentGameState === 'GAMEOVER') {
       ctx.fillStyle = 'rgba(10, 5, 5, 0.9)';
-      ctx.fillRect(0, 0, 240, 280);
+      ctx.fillRect(0, 0, 240, 300);
 
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ef4444';
@@ -675,9 +675,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function spawnLaserGate() {
     const gap = 72; // Passing gap size
     const minHeight = 35;
-    const maxHeight = 280 - gap - minHeight;
+    const maxHeight = 300 - gap - minHeight;
     const topHeight = game.rnd.between(minHeight, maxHeight);
-    const bottomHeight = 280 - gap - topHeight;
+    const bottomHeight = 300 - gap - topHeight;
 
     const color = game.rnd.pick(['CYAN', 'MAGENTA']);
 

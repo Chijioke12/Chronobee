@@ -310,9 +310,9 @@ kbd {
   font-weight: bold;
 }
 
-/* Canvas container enclosing playspace & softkey indicators (280px + 20px = 300px + 20px status bar = 320px) */
+/* Canvas container enclosing playspace & softkey indicators (300px + 20px = 320px total) */
 .canvas-container {
-  height: 300px;
+  height: 320px;
   display: flex;
   flex-direction: column;
   position: relative;
