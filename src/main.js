@@ -1516,8 +1516,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (platformLanded && !p.broken) {
           if (p.type === 'SHATTER') {
             p.broken = true;
+            climberVy = -6.2; // Bounce the player upwards first!
             playSound('damage');
-            createClimberSparks(p.x, p.y, '#ec4899', 8);
+            createClimberSparks(p.x, p.y, '#ec4899', 12);
           } else {
             // Check booster items on platform
             if (p.hasSpring && !p.springUsed) {
