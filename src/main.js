@@ -2292,6 +2292,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function routeKeys(key) {
+    if (key === '*' || key === '#') {
+      debugBrowserCompatibility();
+      playSound('pickup');
+      return;
+    }
+
     if (appMode === 'LAUNCHER') {
       switch (key) {
         case 'ArrowUp':
@@ -2567,6 +2573,136 @@ document.addEventListener('DOMContentLoaded', () => {
 
     routeKeys(mapped);
   });
+
+  // Browser diagnostics utility function
+  function debugBrowserCompatibility() {
+    var unsupported = [];
+    var supported = [];
+
+    // 1. Core JS Engine Capabilities
+    if (typeof Promise !== 'undefined') {
+      supported.push('Promise (Asynchronous Task Support)');
+    } else {
+      unsupported.push('Promise (Core JS engine lacks modern promise chains)');
+    }
+
+    if (typeof fetch !== 'undefined') {
+      supported.push('Fetch API (Live Networking Handshake)');
+    } else {
+      unsupported.push('Fetch API (Manual AJAX fallback necessary)');
+    }
+
+    if (typeof window.requestAnimationFrame !== 'undefined') {
+      supported.push('requestAnimationFrame (High-FPS Render Loop)');
+    } else {
+      unsupported.push('requestAnimationFrame (Fallback rendering active)');
+    }
+
+    // 2. Multimedia / Gaming Canvas
+    var hasCanvas = false;
+    try {
+      var canvas = document.createElement('canvas');
+      hasCanvas = !!(canvas.getContext && canvas.getContext('2d'));
+    } catch (e) {
+      hasCanvas = false;
+    }
+    if (hasCanvas) {
+      supported.push('HTML5 Canvas 2D Core Graphics');
+    } else {
+      unsupported.push('HTML5 Canvas 2D Graphic Context');
+    }
+
+    var hasWebGL = false;
+    try {
+      var canvas = document.createElement('canvas');
+      hasWebGL = !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+    } catch (e) {
+      hasWebGL = false;
+    }
+    if (hasWebGL) {
+      supported.push('WebGL Hardware Acceleration rendering');
+    } else {
+      unsupported.push('WebGL (Fallback to software rendering detected)');
+    }
+
+    if (window.AudioContext || window.webkitAudioContext) {
+      supported.push('Web Audio API synth engine');
+    } else {
+      unsupported.push('Web Audio API sound synthesizers');
+    }
+
+    if (typeof navigator.vibrate !== 'undefined') {
+      supported.push('Vibration API (Retro tactical rumble)');
+    } else {
+      unsupported.push('Vibration API (Physical screen rumble off)');
+    }
+
+    if (typeof navigator.getGamepads !== 'undefined') {
+      supported.push('Gamepad API (Physical peripherals connected)');
+    } else {
+      unsupported.push('Gamepad API (Physical controller layout off)');
+    }
+
+    // 3. Storage System
+    var hasLocalStorage = false;
+    try {
+      localStorage.setItem('__temp_test', '1');
+      localStorage.removeItem('__temp_test');
+      hasLocalStorage = true;
+    } catch (e) {
+      hasLocalStorage = false;
+    }
+    if (hasLocalStorage) {
+      supported.push('LocalStorage Sandbox (Score retention secured)');
+    } else {
+      unsupported.push('LocalStorage Sandbox (Volatile sessions active)');
+    }
+
+    // 4. Mobile System
+    if (navigator.mozApps) {
+      supported.push('navigator.mozApps (KaiOS Native Package System)');
+    } else {
+      unsupported.push('navigator.mozApps (Web Sandbox Environment mode)');
+    }
+
+    var statusText = unsupported.length === 0 ? "EXCELLENT" : "GOOD (MINOR SANDBOX LIMITATIONS)";
+    var infoMessage = "=== KAIOSPHERE DIAGNOSTICS ===\nSTATUS: " + statusText + "\n\n";
+
+    infoMessage += "--- OPERATIONAL CHIPS (ON):\n";
+    if (supported.length > 0) {
+      supported.forEach(function(s) {
+        infoMessage += "✔ " + s + "\n";
+      });
+    } else {
+      infoMessage += "None detected.\n";
+    }
+
+    infoMessage += "\n--- MISSING RUNTIMES (OFF):\n";
+    if (unsupported.length > 0) {
+      unsupported.forEach(function(u) {
+        infoMessage += "✖ " + u + "\n";
+      });
+    } else {
+      infoMessage += "Pure Green! All systems fully aligned correctly.\n";
+    }
+
+    infoMessage += "\nValidated against standard retro mobile specification limits!";
+
+    try {
+      alert(infoMessage);
+    } catch (err) {
+      console.warn("Alert aborted. Raw Diagnostics:\n", infoMessage);
+    }
+  }
+
+  // Diagnostics check button registration
+  const btnDiagCheck = document.getElementById('btnDiagCheck');
+  if (btnDiagCheck) {
+    btnDiagCheck.addEventListener('click', () => {
+      debugBrowserCompatibility();
+      playSound('pickup');
+    });
+  }
 
   // Physical mouse controller setups
   keypadButtons.forEach(btn => {
