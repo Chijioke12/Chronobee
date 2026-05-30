@@ -238,6 +238,30 @@ document.addEventListener('DOMContentLoaded', () => {
   let pickups = [];
   let particles = [];
   
+  // --- MULTI-GAME CARTRIDGES SELECT SYSTEM ---
+  let appMode = 'LAUNCHER'; // 'LAUNCHER' | 'CHRONOBEE' | 'DECRYPTOR'
+  let launcherSelection = 0; // 0 = ChronoBee, 1 = Grid Decryptor
+
+  // --- GRID DECRYPTOR (LOGICAL PUZZLE SYSTEM) ---
+  let decryptorGrid = [];
+  let cursorRow = 2;
+  let cursorCol = 2;
+  let decryptorTimer = 45;
+  let decryptorScore = 0;
+  let decryptorLevel = 1;
+  let decryptorState = 'START'; // 'PLAYING' | 'GAMEOVER'
+  let lastDecryptTimeTick = 0;
+
+  const baseShapePorts = {
+    0: [0, 2], // │ Vertical
+    1: [1, 3], // ─ Horizontal
+    2: [0, 1], // └ North-East Bend
+    3: [1, 2], // ┌ East-South Bend
+    4: [2, 3], // ┐ South-West Bend
+    5: [3, 0], // ┘ West-North Bend
+    6: [0, 1, 2, 3] // ┼ Cross
+  };
+
   let currentGameState = 'START'; // 'START' | 'PLAYING' | 'GAMEOVER'
   let score = 0;
   let combo = 1;
@@ -287,11 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Connect softkeys layout resets
-    if (lblSoftLeft) lblSoftLeft.textContent = 'RESET';
+    if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
     if (lblSoftRight) lblSoftRight.textContent = 'SOUND ON';
 
     resetLogic();
-    currentGameState = 'START';
+    appMode = 'LAUNCHER';
+    if (player) player.visible = false;
   }
 
   function update() {
@@ -306,6 +331,27 @@ document.addEventListener('DOMContentLoaded', () => {
         star.y = game.rnd.between(0, 300);
       }
     });
+
+    if (appMode === 'LAUNCHER') {
+      if (player && player.body) {
+        player.body.velocity.y = 0;
+        player.body.gravity.y = 0;
+        player.visible = false;
+      }
+      return;
+    }
+
+    if (appMode === 'DECRYPTOR') {
+      if (player && player.body) {
+        player.body.velocity.y = 0;
+        player.body.gravity.y = 0;
+        player.visible = false;
+      }
+      updateDecryptor();
+      return;
+    }
+
+    if (player) player.visible = true;
 
     if (currentGameState !== 'PLAYING') {
       if (player && player.body) {
@@ -492,6 +538,16 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.fillRect(star.x, star.y, star.size, star.size);
     });
 
+    if (appMode === 'LAUNCHER') {
+      renderLauncher(ctx);
+      return;
+    }
+
+    if (appMode === 'DECRYPTOR') {
+      renderDecryptor(ctx);
+      return;
+    }
+
     // 2. Render lasers barriers dynamically
     lasers.forEach(laser => {
       const col = getHex(laser.color);
@@ -668,6 +724,433 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.font = '9px sans-serif';
       ctx.fillText('PRESS [F1] OR TOUCH RESTART', 120, 195);
       ctx.fillText('TO REBOOT MATRIX BARRIERS SAFETY', 120, 210);
+    }
+  }
+
+  // --- CARTRIDGE GAME ENGINE MANAGERS ---
+
+  function launchSelectedCart() {
+    if (launcherSelection === 0) {
+      appMode = 'CHRONOBEE';
+      if (player) player.visible = true;
+      resetLogic();
+      currentGameState = 'START';
+      if (lblSoftLeft) lblSoftLeft.textContent = 'MENU';
+    } else {
+      initDecryptorGame();
+    }
+    playSound('jump');
+  }
+
+  function initDecryptorGame() {
+    appMode = 'DECRYPTOR';
+    decryptorState = 'PLAYING';
+    decryptorTimer = 45;
+    decryptorScore = 0;
+    decryptorLevel = 1;
+    cursorRow = 2;
+    cursorCol = 2;
+    lastDecryptTimeTick = Date.now();
+    
+    if (lblSoftLeft) lblSoftLeft.textContent = 'MENU';
+    if (lblSoftRight) lblSoftRight.textContent = 'SOUND ON';
+
+    generateDecryptorBoard();
+  }
+
+  function generateDecryptorBoard() {
+    decryptorGrid = [];
+    const shapes = [0, 1, 2, 3, 4, 5, 6];
+    const shapeWeights = [
+      0.15, // 0: │
+      0.15, // 1: ─
+      0.15, // 2: └  
+      0.15, // 3: ┌
+      0.15, // 4: ┐
+      0.15, // 5: ┘
+      0.10  // 6: ┼
+    ];
+
+    for (let r = 0; r < 5; r++) {
+      const rowArr = [];
+      for (let c = 0; c < 5; c++) {
+        let shape = 1;
+        const rand = game.rnd.frac();
+        let cumulative = 0;
+        for (let s = 0; s < shapes.length; s++) {
+          cumulative += shapeWeights[s];
+          if (rand <= cumulative) {
+            shape = shapes[s];
+            break;
+          }
+        }
+
+        const rot = game.rnd.integerInRange(0, 3);
+        rowArr.push({
+          shape: shape,
+          rotation: rot,
+          connected: false
+        });
+      }
+      decryptorGrid.push(rowArr);
+    }
+
+    runCircuitTrace();
+  }
+
+  function getActivePorts(shape, rotation) {
+    const base = baseShapePorts[shape] || [];
+    return base.map(p => (p + rotation) % 4);
+  }
+
+  function runCircuitTrace() {
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        decryptorGrid[r][c].connected = false;
+      }
+    }
+
+    const visited = Array(5).fill(null).map(() => Array(5).fill(false));
+    const queue = [];
+
+    const startCell = decryptorGrid[2][0];
+    const startPorts = getActivePorts(startCell.shape, startCell.rotation);
+    if (startPorts.includes(3)) {
+      visited[2][0] = true;
+      queue.push([2, 0]);
+    }
+
+    while (queue.length > 0) {
+      const [r, c] = queue.shift();
+      decryptorGrid[r][c].connected = true;
+
+      const activePorts = getActivePorts(decryptorGrid[r][c].shape, decryptorGrid[r][c].rotation);
+      activePorts.forEach(dir => {
+        let nr = r;
+        let nc = c;
+        let oppDir = 0;
+
+        if (dir === 0) { nr = r - 1; oppDir = 2; }
+        else if (dir === 1) { nc = c + 1; oppDir = 3; }
+        else if (dir === 2) { nr = r + 1; oppDir = 0; }
+        else if (dir === 3) { nc = c - 1; oppDir = 1; }
+
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
+          if (!visited[nr][nc]) {
+            const neighbor = decryptorGrid[nr][nc];
+            const neighborPorts = getActivePorts(neighbor.shape, neighbor.rotation);
+            if (neighborPorts.includes(oppDir)) {
+              visited[nr][nc] = true;
+              queue.push([nr, nc]);
+            }
+          }
+        }
+      });
+    }
+
+    const endCell = decryptorGrid[2][4];
+    const endPorts = getActivePorts(endCell.shape, endCell.rotation);
+    if (visited[2][4] && endPorts.includes(1)) {
+      handleGridDecrypted();
+    }
+  }
+
+  function handleGridDecrypted() {
+    decryptorScore += 10;
+    decryptorLevel++;
+    decryptorTimer = Math.min(75, decryptorTimer + 15);
+    playSound('pickup');
+    
+    // Add glowing neon sparks around solver sink
+    addNewSparks(StartXCoordinate(4) + 19, StartYCoordinate(2) + 19, '#00f0ff', 15);
+
+    generateDecryptorBoard();
+  }
+
+  function StartXCoordinate(col) {
+    return 25 + col * 38;
+  }
+
+  function StartYCoordinate(row) {
+    return 70 + row * 38;
+  }
+
+  function updateDecryptor() {
+    if (decryptorState !== 'PLAYING') return;
+
+    const now = Date.now();
+    if (now - lastDecryptTimeTick >= 1000) {
+      lastDecryptTimeTick = now;
+      decryptorTimer--;
+      if (decryptorTimer <= 0) {
+         decryptorTimer = 0;
+         decryptorState = 'GAMEOVER';
+         playSound('gameover');
+         submitHighScore(decryptorScore);
+      } else if (decryptorTimer <= 5) {
+         playSound('damage');
+      }
+    }
+  }
+
+  function renderLauncher(ctx) {
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, 240, 300);
+
+    ctx.fillStyle = '#075e3e';
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('KAIOS BOOT MATRIX SYSTEM v3...', 15, 20);
+    ctx.fillText('DECRYPT CORE CONSOLE CHIP ON...', 15, 30);
+
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(10, 42, 220, 248);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#00f0ff';
+    ctx.font = 'bold 15px system-ui';
+    ctx.fillText('SYSTEM CARTRIDGES', 120, 68);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '8px monospace';
+    ctx.fillText('SELECT ACTIVE MODULE', 120, 82);
+
+    // Bee Cart ridge Selector
+    const activeChrono = launcherSelection === 0;
+    ctx.fillStyle = activeChrono ? 'rgba(0, 240, 255, 0.12)' : '#070b13';
+    ctx.fillRect(20, 105, 200, 52);
+    ctx.strokeStyle = activeChrono ? '#00f0ff' : '#1e293b';
+    ctx.lineWidth = activeChrono ? 1.5 : 1;
+    ctx.strokeRect(20, 105, 200, 52);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = activeChrono ? '#ffffff' : '#9ca3af';
+    ctx.font = 'bold 11px system-ui';
+    ctx.fillText('1.  🐝 CHRONO-BEE GRID', 30, 126);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '8px monospace';
+    ctx.fillText('Velocity Flapper. Action Matrix.', 30, 142);
+
+    // Decryptor Cart selector
+    const activeDecryptor = launcherSelection === 1;
+    ctx.fillStyle = activeDecryptor ? 'rgba(16, 185, 129, 0.12)' : '#070b13';
+    ctx.fillRect(20, 175, 200, 52);
+    ctx.strokeStyle = activeDecryptor ? '#10b981' : '#1e293b';
+    ctx.lineWidth = activeDecryptor ? 1.5 : 1;
+    ctx.strokeRect(20, 175, 200, 52);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = activeDecryptor ? '#ffffff' : '#9ca3af';
+    ctx.font = 'bold 11px system-ui';
+    ctx.fillText('2.  ⚡ GRID DECRYPTOR', 30, 196);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '8px monospace';
+    ctx.fillText('Logical Connect. Path Hack Puzzle.', 30, 212);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '8px sans-serif';
+    ctx.fillText('USE ARROWS ▲/▼ TO HIGHLIGHT', 120, 248);
+    ctx.fillStyle = '#22c55e';
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText('PRESS CENTER OK TO UNLEASH', 120, 262);
+  }
+
+  function renderDecryptor(ctx) {
+    ctx.fillStyle = '#0a0f1d';
+    ctx.fillRect(0, 0, 240, 300);
+
+    // Top status design
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, 240, 52);
+    ctx.strokeStyle = '#1a2333';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, 52, 240, 1);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 11px system-ui';
+    ctx.textAlign = 'left';
+    ctx.fillText(`👾 BYPASS SCORES: ${decryptorScore}`, 10, 18);
+
+    ctx.fillStyle = '#ef4444';
+    ctx.textAlign = 'right';
+    ctx.fillText(`⚡ TIMER: ${decryptorTimer}s`, 230, 18);
+
+    // Progress bar link
+    ctx.fillStyle = '#311010';
+    ctx.fillRect(10, 26, 220, 4);
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(10, 26, Math.floor(220 * (decryptorTimer / 75)), 4);
+
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`LEVEL ${decryptorLevel} - LINK RECTIFY ENCRYPT`, 120, 44);
+
+    // Draw Source and Sink anchors
+    const sY = StartYCoordinate(2) + 19;
+    
+    // Draw Source IN node
+    ctx.save();
+    ctx.translate(14, sY);
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SRC', 0, -8);
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+    ctx.restore();
+
+    // Draw Sink OUT node
+    ctx.save();
+    ctx.translate(226, sY);
+    const sinkConnected = decryptorGrid[2] && decryptorGrid[2][4] && decryptorGrid[2][4].connected && getActivePorts(decryptorGrid[2][4].shape, decryptorGrid[2][4].rotation).includes(1);
+    ctx.fillStyle = sinkConnected ? '#00f0ff' : '#ef4444';
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SINK', 0, -8);
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+    ctx.restore();
+
+    const startX = 25;
+    const startY = 70;
+    const size = 38;
+
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const cx = startX + c * size + size / 2;
+        const cy = startY + r * size + size / 2;
+
+        const cell = decryptorGrid[r][c];
+        if (!cell) continue;
+
+        // Cell backing
+        ctx.fillStyle = '#060a12';
+        ctx.fillRect(cx - size/2 + 2, cy - size/2 + 2, size - 4, size - 4);
+        ctx.strokeStyle = '#131c2e';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx - size/2 + 2, cy - size/2 + 2, size - 4, size - 4);
+
+        const activePorts = getActivePorts(cell.shape, cell.rotation);
+        const rLen = size / 2;
+        const col = cell.connected ? '#00f0ff' : '#475569';
+        const glowCol = cell.connected ? 'rgba(0, 240, 255, 0.4)' : 'rgba(71, 85, 105, 0.1)';
+
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Background glowing tracer
+        ctx.strokeStyle = glowCol;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        activePorts.forEach(port => {
+          let px = cx;
+          let py = cy;
+          if (port === 0) py -= rLen;
+          else if (port === 1) px += rLen;
+          else if (port === 2) py += rLen;
+          else if (port === 3) px -= rLen;
+          
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+
+        // Core visual cable
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        activePorts.forEach(port => {
+          let px = cx;
+          let py = cy;
+          if (port === 0) py -= rLen;
+          else if (port === 1) px += rLen;
+          else if (port === 2) py += rLen;
+          else if (port === 3) px -= rLen;
+          
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+
+        // Inner light core filaments
+        ctx.strokeStyle = cell.connected ? '#ffffff' : '#64748b';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        activePorts.forEach(port => {
+          let px = cx;
+          let py = cy;
+          if (port === 0) py -= rLen;
+          else if (port === 1) px += rLen;
+          else if (port === 2) py += rLen;
+          else if (port === 3) px -= rLen;
+          
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+
+        // Center visual core node
+        ctx.fillStyle = cell.connected ? '#ffffff' : '#475569';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI*2);
+        ctx.fill();
+
+        // Navigation highlighter reticle
+        if (r === cursorRow && c === cursorCol) {
+          const blink = Math.sin(Date.now() * 0.01) * 0.5 + 0.5;
+          ctx.strokeStyle = `rgba(0, 240, 255, ${0.4 + blink * 0.6})`;
+          ctx.lineWidth = 2.5;
+          ctx.strokeRect(cx - size/2 + 1, cy - size/2 + 1, size - 2, size - 2);
+
+          ctx.fillStyle = '#00f0ff';
+          ctx.fillRect(cx - size/2, cy - size/2, 5, 2);
+          ctx.fillRect(cx - size/2, cy - size/2, 2, 5);
+
+          ctx.fillRect(cx + size/2 - 5, cy - size/2, 5, 2);
+          ctx.fillRect(cx + size/2 - 2, cy - size/2, 2, 5);
+
+          ctx.fillRect(cx - size/2, cy + size/2 - 2, 5, 2);
+          ctx.fillRect(cx - size/2, cy + size/2 - 5, 2, 5);
+
+          ctx.fillRect(cx + size/2 - 5, cy + size/2 - 2, 5, 2);
+          ctx.fillRect(cx + size/2 - 2, cy + size/2 - 5, 2, 5);
+        }
+      }
+    }
+
+    if (decryptorState === 'GAMEOVER') {
+      ctx.fillStyle = 'rgba(5, 7, 15, 0.94)';
+      ctx.fillRect(0, 0, 240, 300);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText('SECURITY OVERRUN!', 120, 85);
+      
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '9px monospace';
+      ctx.fillText('GRID BYPASS SWEEP TRIGGERED', 120, 105);
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 36px system-ui';
+      ctx.fillText(`${decryptorScore}`, 120, 160);
+      ctx.font = '9px monospace';
+      ctx.fillStyle = '#475569';
+      ctx.fillText('CORES RECTIFIED SECURELY', 120, 178);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '9px sans-serif';
+      ctx.fillText('PRESS [F1] OR TOUCH LEFT SOFTKEY', 120, 222);
+      ctx.fillText('TO RETURN TO THE SYSTEM RETRO MENU', 120, 236);
     }
   }
 
@@ -853,36 +1336,154 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function routeKeys(key) {
-    switch (key) {
-      case 'Enter':
-      case 'Space':
-      case ' ':
-      case '5':
-      case '2':
-      case 'ArrowUp':
-        performFlap();
-        break;
-      case 'ArrowDown':
-      case '8':
-        performDive();
-        break;
-      case 'ArrowLeft':
-      case '4':
-        performPhaseShift();
-        break;
-      case 'ArrowRight':
-      case '6':
-        performDash();
-        break;
-      case 'SoftLeft':
-        launchGame();
-        break;
-      case 'SoftRight':
-        handleMuteToggle();
-        break;
-      default:
-        playSound('damage');
-        break;
+    if (appMode === 'LAUNCHER') {
+      switch (key) {
+        case 'ArrowUp':
+        case '2':
+          launcherSelection = 0;
+          playSound('jump');
+          break;
+        case 'ArrowDown':
+        case '8':
+          launcherSelection = 1;
+          playSound('jump');
+          break;
+        case '1':
+          launcherSelection = 0;
+          launchSelectedCart();
+          break;
+        case '2':
+          launcherSelection = 1;
+          launchSelectedCart();
+          break;
+        case 'Enter':
+        case '5':
+        case ' ':
+        case 'SoftLeft':
+          launchSelectedCart();
+          break;
+        case 'SoftRight':
+          handleMuteToggle();
+          break;
+        default:
+          break;
+      }
+      return;
+    }
+
+    if (appMode === 'DECRYPTOR') {
+      if (decryptorState === 'GAMEOVER') {
+        if (key === 'SoftLeft' || key === 'Enter' || key === '5' || key === ' ') {
+          appMode = 'LAUNCHER';
+          if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+          playSound('phase');
+        } else if (key === 'SoftRight') {
+          handleMuteToggle();
+        }
+        return;
+      }
+
+      switch (key) {
+        case 'ArrowUp':
+        case '2':
+          if (cursorRow > 0) {
+            cursorRow--;
+            playSound('jump');
+          }
+          break;
+        case 'ArrowDown':
+        case '8':
+          if (cursorRow < 4) {
+            cursorRow++;
+            playSound('jump');
+          }
+          break;
+        case 'ArrowLeft':
+        case '4':
+          if (cursorCol > 0) {
+            cursorCol--;
+            playSound('jump');
+          }
+          break;
+        case 'ArrowRight':
+        case '6':
+          if (cursorCol < 4) {
+            cursorCol++;
+            playSound('jump');
+          }
+          break;
+        case 'Enter':
+        case '5':
+        case ' ':
+          if (decryptorGrid[cursorRow] && decryptorGrid[cursorRow][cursorCol]) {
+            const cell = decryptorGrid[cursorRow][cursorCol];
+            cell.rotation = (cell.rotation + 1) % 4;
+            playSound('phase');
+            addNewSparks(
+              StartXCoordinate(cursorCol) + 19,
+              StartYCoordinate(cursorRow) + 19,
+              cell.connected ? '#00f0ff' : '#64748b',
+              5
+            );
+            runCircuitTrace();
+          }
+          break;
+        case 'SoftLeft':
+          appMode = 'LAUNCHER';
+          if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+          playSound('phase');
+          break;
+        case 'SoftRight':
+          handleMuteToggle();
+          break;
+        default:
+          break;
+      }
+      return;
+    }
+
+    // --- CHRONOBEE MODE ROUTING ---
+    if (appMode === 'CHRONOBEE') {
+      switch (key) {
+        case 'Enter':
+        case 'Space':
+        case ' ':
+        case '5':
+        case '2':
+        case 'ArrowUp':
+          performFlap();
+          break;
+        case 'ArrowDown':
+        case '8':
+          performDive();
+          break;
+        case 'ArrowLeft':
+        case '4':
+          performPhaseShift();
+          break;
+        case 'ArrowRight':
+        case '6':
+          performDash();
+          break;
+        case 'SoftLeft':
+          if (currentGameState === 'START' || currentGameState === 'GAMEOVER') {
+            appMode = 'LAUNCHER';
+            if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+            if (player) player.visible = false;
+            playSound('phase');
+          } else {
+            resetLogic();
+            currentGameState = 'PLAYING';
+            playSound('jump');
+          }
+          break;
+        case 'SoftRight':
+          handleMuteToggle();
+          break;
+        default:
+          playSound('damage');
+          break;
+      }
     }
   }
 
