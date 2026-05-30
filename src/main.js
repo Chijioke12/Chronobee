@@ -239,8 +239,23 @@ document.addEventListener('DOMContentLoaded', () => {
   let particles = [];
   
   // --- MULTI-GAME CARTRIDGES SELECT SYSTEM ---
-  let appMode = 'LAUNCHER'; // 'LAUNCHER' | 'CHRONOBEE' | 'DECRYPTOR' | 'INTERCEPTOR'
-  let launcherSelection = 0; // 0 = ChronoBee, 1 = Grid Decryptor, 2 = Neon Interceptor
+  let appMode = 'LAUNCHER'; // 'LAUNCHER' | 'CHRONOBEE' | 'DECRYPTOR' | 'INTERCEPTOR' | 'CLIMBER'
+  let launcherSelection = 0; // 0 = ChronoBee, 1 = Grid Decryptor, 2 = Neon Interceptor, 3 = Doodle Climber
+
+  // --- DOODLE CLIMBER (NEON CLIMBER PLATFORMER) ---
+  let climberScore = 0;
+  let climberHighScore = 0;
+  let climberX = 120;
+  let climberY = 150;
+  let climberVx = 0;
+  let climberVy = 0;
+  let climberState = 'START'; // 'PLAYING' | 'GAMEOVER'
+  let climberPlatforms = [];
+  let climberMonsters = [];
+  let climberBullets = [];
+  let climberParticles = [];
+  let climberJetpackTimer = 0; // if > 0, player has fly rocket boost!
+  let climberLastShootTime = 0;
 
   // --- GRID DECRYPTOR (LOGICAL PUZZLE SYSTEM) ---
   let decryptorGrid = [];
@@ -372,6 +387,16 @@ document.addEventListener('DOMContentLoaded', () => {
         player.visible = false;
       }
       updateInterceptor();
+      return;
+    }
+
+    if (appMode === 'CLIMBER') {
+      if (player && player.body) {
+        player.body.velocity.y = 0;
+        player.body.gravity.y = 0;
+        player.visible = false;
+      }
+      updateClimber();
       return;
     }
 
@@ -577,6 +602,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    if (appMode === 'CLIMBER') {
+      renderClimber(ctx);
+      return;
+    }
+
     // 2. Render lasers barriers dynamically
     lasers.forEach(laser => {
       const col = getHex(laser.color);
@@ -769,6 +799,8 @@ document.addEventListener('DOMContentLoaded', () => {
       initDecryptorGame();
     } else if (launcherSelection === 2) {
       initInterceptorGame();
+    } else if (launcherSelection === 3) {
+      initClimberGame();
     }
     playSound('jump');
   }
@@ -1263,6 +1295,528 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // --- DOODLE CLIMBER CUSTOM ARCADE PLATFORMER ---
+
+  function initClimberGame() {
+    appMode = 'CLIMBER';
+    climberState = 'PLAYING';
+    climberScore = 0;
+    climberX = 120;
+    climberY = 180;
+    climberVx = 0;
+    climberVy = -6.5; // Starts with an elegant initial bounce
+    climberPlatforms = [];
+    climberMonsters = [];
+    climberBullets = [];
+    climberParticles = [];
+    climberJetpackTimer = 0;
+    climberLastShootTime = 0;
+
+    // Direct solid starting landing platform underneath the player
+    climberPlatforms.push({
+      x: 120,
+      y: 220,
+      type: 'NORMAL',
+      width: 44,
+      height: 5,
+      broken: false,
+      vx: 0,
+      hasSpring: false,
+      hasJetpack: false,
+      springUsed: false,
+      jetpackUsed: false
+    });
+
+    // Generate upward ladders
+    let nextY = 180;
+    for (let i = 0; i < 7; i++) {
+      nextY -= game.rnd.between(35, 52);
+      generateClimberPlatform(nextY);
+    }
+
+    if (lblSoftLeft) lblSoftLeft.textContent = 'MENU';
+    if (lblSoftRight) lblSoftRight.textContent = 'SOUND ON';
+  }
+
+  function generateClimberPlatform(targetY) {
+    const rx = game.rnd.between(30, 210);
+    const randType = game.rnd.frac();
+    let type = 'NORMAL';
+    let vx = 0;
+
+    if (climberScore > 1800 && randType > 0.8) {
+      type = 'MOVING';
+      vx = (game.rnd.frac() > 0.5 ? 1 : -1) * (0.8 + game.rnd.frac() * 0.8);
+    } else if (climberScore > 700 && randType > 0.55 && randType <= 0.8) {
+      type = 'SHATTER';
+    } else if (randType > 0.88) {
+      type = 'BOOST';
+    }
+
+    let hasSpring = false;
+    let hasJetpack = false;
+    if (type === 'BOOST') {
+      if (game.rnd.frac() > 0.75 && climberScore > 1200) {
+        hasJetpack = true;
+      } else {
+        hasSpring = true;
+      }
+    }
+
+    climberPlatforms.push({
+      x: rx,
+      y: targetY,
+      type: type,
+      width: 32,
+      height: 5,
+      broken: false,
+      vx: vx,
+      hasSpring: hasSpring,
+      hasJetpack: hasJetpack,
+      springUsed: false,
+      jetpackUsed: false
+    });
+  }
+
+  function spawnClimberMonster(targetY) {
+    if (climberScore < 600) return;
+    if (game.rnd.frac() > 0.3) return; // 30% chance of spawning custom monster bugs
+
+    const rx = game.rnd.between(40, 200);
+    climberMonsters.push({
+      x: rx,
+      y: targetY,
+      vx: (game.rnd.frac() > 0.5 ? 1 : -1) * (0.5 + game.rnd.frac() * 0.5),
+      width: 14,
+      height: 14,
+      color: game.rnd.frac() > 0.5 ? '#f43f5e' : '#f97316'
+    });
+  }
+
+  function createClimberSparks(x, y, colorStr, count) {
+    for (let i = 0; i < count; i++) {
+      const angle = game.rnd.realInRange(0, Math.PI * 2);
+      const speed = game.rnd.realInRange(0.6, 3.2);
+      climberParticles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: colorStr,
+        life: game.rnd.integerInRange(10, 24)
+      });
+    }
+  }
+
+  function fireClimberLaser() {
+    if (climberState !== 'PLAYING') return;
+    const now = Date.now();
+    if (now - climberLastShootTime < 240) return; // limit bullet spamming rate
+    climberLastShootTime = now;
+
+    climberBullets.push({ x: climberX, y: climberY - 10 });
+    playSound('phase');
+    createClimberSparks(climberX, climberY - 12, '#ec4899', 3);
+  }
+
+  function updateClimber() {
+    if (climberState !== 'PLAYING') return;
+
+    if (climberJetpackTimer > 0) {
+      climberJetpackTimer--;
+      climberVy = -7.5;
+      if (frameCount % 2 === 0) {
+        // Rocket fuel particles
+        createClimberSparks(climberX - 4, climberY + 12, '#f97316', 2);
+        createClimberSparks(climberX + 4, climberY + 12, '#ea580c', 2);
+        createClimberSparks(climberX, climberY + 14, '#eab308', 2);
+      }
+    } else {
+      climberVy += 0.16; // Neon platformer low gravity
+      if (climberVy > 7.5) climberVy = 7.5;
+    }
+
+    climberX += climberVx;
+    climberVx *= 0.88; // drift damping friction
+
+    // Screen border wrap-around standard logic
+    if (climberX < -4) climberX = 244;
+    if (climberX > 244) climberX = -4;
+
+    climberY += climberVy;
+
+    // Platform updates
+    for (let i = 0; i < climberPlatforms.length; i++) {
+      const p = climberPlatforms[i];
+      if (p.type === 'MOVING' && !p.broken) {
+        p.x += p.vx;
+        if (p.x < 24 || p.x > 216) p.vx = -p.vx;
+      }
+
+      // Handle bouncy landing collisions (strictly when falling downwards)
+      if (climberVy > 0 && climberJetpackTimer <= 0) {
+        const platformLanded = (
+          climberX > p.x - p.width / 2 - 8 &&
+          climberX < p.x + p.width / 2 + 8 &&
+          climberY + 12 >= p.y - 3 &&
+          climberY + 12 <= p.y + 6
+        );
+
+        if (platformLanded && !p.broken) {
+          if (p.type === 'SHATTER') {
+            p.broken = true;
+            playSound('damage');
+            createClimberSparks(p.x, p.y, '#ec4899', 8);
+          } else {
+            // Check booster items on platform
+            if (p.hasSpring && !p.springUsed) {
+              p.springUsed = true;
+              climberVy = -11.5;
+              playSound('boost');
+              createClimberSparks(p.x, p.y - 4, '#eab308', 12);
+            } else if (p.hasJetpack && !p.jetpackUsed) {
+              p.jetpackUsed = true;
+              climberJetpackTimer = 160; // 160 frame cycle
+              climberVy = -8;
+              playSound('boost');
+              createClimberSparks(p.x, p.y - 4, '#3b82f6', 22);
+            } else {
+              // Standard secure platform bounce
+              climberVy = -6.2;
+              playSound('jump');
+              createClimberSparks(climberX, climberY + 12, '#22c55e', 4);
+            }
+          }
+        }
+      }
+    }
+
+    // Scrolling camera mechanism as the player leaps upwards past middle screen
+    if (climberY < 130) {
+      const scrollDiff = 130 - climberY;
+      climberY = 130;
+      climberScore += Math.floor(scrollDiff);
+
+      // Push all systems downwards
+      climberPlatforms.forEach(p => { p.y += scrollDiff; });
+      climberMonsters.forEach(m => { m.y += scrollDiff; });
+      climberBullets.forEach(b => { b.y += scrollDiff; });
+      climberParticles.forEach(pt => { pt.y += scrollDiff; });
+    }
+
+    // Procedural replenishment & cleanup of platforms
+    const survivingPlatforms = climberPlatforms.filter(p => p.y < 312);
+    const lostCount = 8 - survivingPlatforms.length;
+    climberPlatforms = survivingPlatforms;
+
+    let topmostY = 300;
+    climberPlatforms.forEach(p => {
+      if (p.y < topmostY) topmostY = p.y;
+    });
+
+    for (let j = 0; j < lostCount; j++) {
+      topmostY -= game.rnd.between(35, 52);
+      generateClimberPlatform(topmostY);
+      spawnClimberMonster(topmostY - 14);
+    }
+
+    // Monsters horizontal patrol update
+    for (let k = climberMonsters.length - 1; k >= 0; k--) {
+      const m = climberMonsters[k];
+      m.x += m.vx;
+      if (m.x < 15 || m.x > 225) m.vx = -m.vx;
+
+      // Drop off bottom border
+      if (m.y > 312) {
+        climberMonsters.splice(k, 1);
+        continue;
+      }
+
+      // Check collision with the bouncing player
+      const deltaDist = Math.hypot(climberX - m.x, climberY - m.y);
+      if (deltaDist < 16) {
+        if (climberJetpackTimer > 0) {
+          // Destined power jet destruction of hazard bugs!
+          climberMonsters.splice(k, 1);
+          playSound('pickup');
+          createClimberSparks(m.x, m.y, '#f43f5e', 14);
+        } else {
+          // Lethal contact with hazard bug when not flying
+          handleClimberGameOver();
+          return;
+        }
+      }
+    }
+
+    // Bullets motion & collision with monsters
+    for (let n = climberBullets.length - 1; n >= 0; n--) {
+      const b = climberBullets[n];
+      b.y -= 7.5;
+      if (b.y < -10) {
+        climberBullets.splice(n, 1);
+        continue;
+      }
+
+      for (let mIdx = climberMonsters.length - 1; mIdx >= 0; mIdx--) {
+        const mon = climberMonsters[mIdx];
+        if (Math.hypot(b.x - mon.x, b.y - mon.y) < 14) {
+          // Core hit! Destroy core bug
+          climberMonsters.splice(mIdx, 1);
+          climberBullets.splice(n, 1);
+          climberScore += 100;
+          playSound('pickup');
+          createClimberSparks(mon.x, mon.y, '#f43f5e', 16);
+          break;
+        }
+      }
+    }
+
+    // Update debris particles
+    for (let xIdx = climberParticles.length - 1; xIdx >= 0; xIdx--) {
+      const pt = climberParticles[xIdx];
+      pt.x += pt.vx;
+      pt.y += pt.vy;
+      pt.life--;
+      if (pt.life <= 0) {
+        climberParticles.splice(xIdx, 1);
+      }
+    }
+
+    // Defeat boundary
+    if (climberY > 310) {
+      handleClimberGameOver();
+    }
+  }
+
+  function handleClimberGameOver() {
+    climberState = 'GAMEOVER';
+    playSound('gameover');
+    if (climberScore > climberHighScore) {
+      climberHighScore = climberScore;
+    }
+    submitHighScore(climberScore);
+  }
+
+  function renderClimber(ctx) {
+    // Fill starry black cosmos horizon
+    ctx.fillStyle = '#080710';
+    ctx.fillRect(0, 0, 240, 300);
+
+    // Decorative static binary vertical lines
+    ctx.strokeStyle = 'rgba(236, 72, 153, 0.04)';
+    ctx.lineWidth = 1;
+    for (let xl = 15; xl <= 225; xl += 20) {
+      ctx.beginPath();
+      ctx.moveTo(xl, 0);
+      ctx.lineTo(xl, 300);
+      ctx.stroke();
+    }
+
+    // Draw platforms
+    climberPlatforms.forEach(p => {
+      if (p.broken) return;
+
+      const halfW = p.width / 2;
+      let gradFill = ctx.createLinearGradient(p.x - halfW, p.y, p.x + halfW, p.y);
+
+      // Color coding themes
+      if (p.type === 'SHATTER') {
+        gradFill.addColorStop(0, '#db2777');
+        gradFill.addColorStop(1, '#f472b6');
+      } else if (p.type === 'MOVING') {
+        gradFill.addColorStop(0, '#0284c7');
+        gradFill.addColorStop(1, '#38bdf8');
+      } else if (p.type === 'BOOST') {
+        gradFill.addColorStop(0, '#7c3aed');
+        gradFill.addColorStop(1, '#a78bfa');
+      } else {
+        gradFill.addColorStop(0, '#16a34a');
+        gradFill.addColorStop(1, '#4ade80');
+      }
+
+      // Rounded rect shape for high-quality capsule look
+      ctx.fillStyle = gradFill;
+      ctx.beginPath();
+      ctx.roundRect(p.x - halfW, p.y - 2, p.width, 4, 2);
+      ctx.fill();
+
+      // Top edge high-contrast gloss line
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(p.x - halfW + 1, p.y - 1.5);
+      ctx.lineTo(p.x + halfW - 1, p.y - 1.5);
+      ctx.stroke();
+
+      // Submersion items indicators
+      if (p.hasSpring && !p.springUsed) {
+        // Yellow coiled spring drawing
+        ctx.fillStyle = '#eab308';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(p.x - 3, p.y - 6, 6, 4);
+        ctx.fillRect(p.x - 3, p.y - 3, 6, 1);
+      } else if (p.hasSpring && p.springUsed) {
+        // Extended spring
+        ctx.fillStyle = '#ca8a04';
+        ctx.fillRect(p.x - 3, p.y - 9, 6, 7);
+      }
+
+      if (p.hasJetpack && !p.jetpackUsed) {
+        // Flame color miniature booster tank
+        ctx.fillStyle = '#ea580c';
+        ctx.fillRect(p.x - 4, p.y - 11, 8, 9);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(p.x - 2, p.y - 8, 4, 3);
+      }
+    });
+
+    // Draw active custom particles
+    climberParticles.forEach(pt => {
+      ctx.fillStyle = pt.color;
+      ctx.fillRect(pt.x - 1, pt.y - 1, 2, 2);
+    });
+
+    // Draw neon monster hazard bugs
+    climberMonsters.forEach(m => {
+      ctx.fillStyle = m.color;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Threat antennae draw
+      ctx.strokeStyle = m.color;
+      ctx.beginPath();
+      ctx.moveTo(m.x - 4, m.y - 5);
+      ctx.lineTo(m.x - 7, m.y - 10);
+      ctx.moveTo(m.x + 4, m.y - 5);
+      ctx.lineTo(m.x + 7, m.y - 10);
+      ctx.stroke();
+
+      // Cyber angry red visor eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(m.x - 3, m.y - 2, 6, 1.5);
+    });
+
+    // Draw user lasers
+    climberBullets.forEach(b => {
+      ctx.fillStyle = '#f472b6';
+      ctx.fillRect(b.x - 1, b.y - 6, 2, 10);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(b.x - 0.5, b.y - 4, 1, 6);
+    });
+
+    // Draw the main player (Doodle Space Ranger Capsule)
+    if (climberState === 'PLAYING') {
+      const cx = climberX;
+      const cy = climberY;
+
+      // Draw jet plume or wings if using jetpack
+      if (climberJetpackTimer > 0) {
+        ctx.fillStyle = '#06b6d4';
+        // Left thruster tank
+        ctx.fillRect(cx - 10, cy - 1, 4, 10);
+        // Right thruster tank
+        ctx.fillRect(cx + 6, cy - 1, 4, 10);
+
+        // Flame blasts
+        ctx.fillStyle = frameCount % 2 === 0 ? '#f97316' : '#eab308';
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, cy + 9);
+        ctx.lineTo(cx - 8, cy + 16 + game.rnd.frac() * 4);
+        ctx.lineTo(cx - 6, cy + 9);
+        ctx.moveTo(cx + 6, cy + 9);
+        ctx.lineTo(cx + 8, cy + 16 + game.rnd.frac() * 4);
+        ctx.lineTo(cx + 10, cy + 9);
+        ctx.fill();
+      }
+
+      // Main head capsule body
+      ctx.fillStyle = '#db2777';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      // Draw a neat arcade round-dome vector helmet
+      ctx.arc(cx, cy, 7, Math.PI, 0, false);
+      ctx.lineTo(cx + 7, cy + 8);
+      ctx.lineTo(cx - 7, cy + 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Cyber cyan visor screen (looking in velocity directions!)
+      ctx.fillStyle = '#00f0ff';
+      const lookOffset = climberVx > 1 ? 2 : (climberVx < -1 ? -2 : 0);
+      ctx.beginPath();
+      ctx.roundRect(cx - 4 + lookOffset, cy - 3, 8, 4, 1.5);
+      ctx.fill();
+
+      // Miniature cute legs
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 4, cy + 8);
+      ctx.lineTo(cx - 4, cy + 11);
+      ctx.moveTo(cx + 4, cy + 8);
+      ctx.lineTo(cx + 4, cy + 11);
+      ctx.stroke();
+    }
+
+    // Dashboard HUD overhead
+    ctx.fillStyle = '#05040a';
+    ctx.fillRect(0, 0, 240, 28);
+    ctx.strokeStyle = 'rgba(236, 72, 153, 0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, 28, 240, 1);
+
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = '#db2777';
+    ctx.fillText(`ALTITUDE: ${climberScore}`, 8, 16);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText(`BEST: ${climberHighScore}`, 232, 16);
+
+    // Jetpack remaining percentage display
+    if (climberJetpackTimer > 0) {
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
+      ctx.fillRect(56, 18, 128, 4);
+      ctx.fillStyle = '#00f0ff';
+      ctx.fillRect(56, 18, Math.floor(128 * (climberJetpackTimer / 160)), 4);
+    }
+
+    // GAME OVER Screen
+    if (climberState === 'GAMEOVER') {
+      ctx.fillStyle = 'rgba(5, 4, 10, 0.96)';
+      ctx.fillRect(0, 0, 240, 300);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('SYSTEM DESCENT DETECTED', 120, 85);
+
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '8px monospace';
+      ctx.fillText('DOODLE CLIMBER TERMINATION', 120, 101);
+
+      ctx.fillStyle = '#ec4899';
+      ctx.font = 'bold 36px system-ui';
+      ctx.fillText(`${climberScore}`, 120, 155);
+      ctx.font = '8px monospace';
+      ctx.fillStyle = '#52525b';
+      ctx.fillText('CHIP ALTITUDE RECORD SAVED SECURELY', 120, 172);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '9px sans-serif';
+      ctx.fillText('PRESS CENTER OR OK KEY TO RE-FLIGHT', 120, 222);
+      ctx.fillText('PRESS [F1] / MENU TO EXIT TO MENU', 120, 236);
+    }
+  }
+
   function renderLauncher(ctx) {
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, 240, 300);
@@ -1270,77 +1824,93 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.fillStyle = '#075e3e';
     ctx.font = 'bold 8px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText('KAIOS BOOT MATRIX SYSTEM v3...', 15, 20);
-    ctx.fillText('DECRYPT CORE CONSOLE CHIP ON...', 15, 30);
+    ctx.fillText('KAIOS BOOT MATRIX SYSTEM v3...', 15, 18);
+    ctx.fillText('DECRYPT CORE CONSOLE CHIP ON...', 15, 27);
 
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 1;
-    ctx.strokeRect(10, 42, 220, 248);
+    ctx.strokeRect(10, 36, 220, 254);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00f0ff';
-    ctx.font = 'bold 15px system-ui';
-    ctx.fillText('SYSTEM CARTRIDGES', 120, 62);
+    ctx.font = 'bold 13px system-ui';
+    ctx.fillText('SYSTEM CARTRIDGES', 120, 52);
 
     ctx.fillStyle = '#475569';
-    ctx.font = '8px monospace';
-    ctx.fillText('SELECT ACTIVE CARTRIDGE', 120, 74);
+    ctx.font = '7px monospace';
+    ctx.fillText('SELECT ACTIVE CARTRIDGE', 120, 62);
 
-    // Cartridge 1: Chrono-Bee Selector (Compact position)
+    // Cartridge 1: Chrono-Bee Selector
     const activeChrono = launcherSelection === 0;
     ctx.fillStyle = activeChrono ? 'rgba(0, 240, 255, 0.12)' : '#070b13';
-    ctx.fillRect(20, 95, 200, 44);
+    ctx.fillRect(18, 70, 204, 34);
     ctx.strokeStyle = activeChrono ? '#00f0ff' : '#1e293b';
     ctx.lineWidth = activeChrono ? 1.5 : 1;
-    ctx.strokeRect(20, 95, 200, 44);
+    ctx.strokeRect(18, 70, 204, 34);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = activeChrono ? '#ffffff' : '#9ca3af';
-    ctx.font = 'bold 10px system-ui';
-    ctx.fillText('1.  🐝 CHRONO-BEE GRID', 28, 112);
+    ctx.font = 'bold 9px system-ui';
+    ctx.fillText('1.  🐝 CHRONO-BEE GRID', 26, 84);
     ctx.fillStyle = '#526175';
-    ctx.font = '7.5px monospace';
-    ctx.fillText('Action Flapper. Phase Shift Laser matrix.', 28, 126);
+    ctx.font = '7px monospace';
+    ctx.fillText('Action Flapper. Phase Shift Laser matrix.', 26, 95);
 
     // Cartridge 2: Decryptor Cart selector
     const activeDecryptor = launcherSelection === 1;
     ctx.fillStyle = activeDecryptor ? 'rgba(16, 185, 129, 0.12)' : '#070b13';
-    ctx.fillRect(20, 147, 200, 44);
+    ctx.fillRect(18, 110, 204, 34);
     ctx.strokeStyle = activeDecryptor ? '#10b981' : '#1e293b';
     ctx.lineWidth = activeDecryptor ? 1.5 : 1;
-    ctx.strokeRect(20, 147, 200, 44);
+    ctx.strokeRect(18, 110, 204, 34);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = activeDecryptor ? '#ffffff' : '#9ca3af';
-    ctx.font = 'bold 10px system-ui';
-    ctx.fillText('2.  ⚡ GRID DECRYPTOR', 28, 164);
+    ctx.font = 'bold 9px system-ui';
+    ctx.fillText('2.  ⚡ GRID DECRYPTOR', 26, 124);
     ctx.fillStyle = '#526175';
-    ctx.font = '7.5px monospace';
-    ctx.fillText('Logical wire rotate connection puzzle.', 28, 178);
+    ctx.font = '7px monospace';
+    ctx.fillText('Logical wire rotate connection puzzle.', 26, 135);
 
     // Cartridge 3: Neon Interceptor selector
     const activeInterceptor = launcherSelection === 2;
     ctx.fillStyle = activeInterceptor ? 'rgba(139, 92, 246, 0.12)' : '#070b13';
-    ctx.fillRect(20, 199, 200, 44);
+    ctx.fillRect(18, 150, 204, 34);
     ctx.strokeStyle = activeInterceptor ? '#8b5cf6' : '#1e293b';
     ctx.lineWidth = activeInterceptor ? 1.5 : 1;
-    ctx.strokeRect(20, 199, 200, 44);
+    ctx.strokeRect(18, 150, 204, 34);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = activeInterceptor ? '#ffffff' : '#9ca3af';
-    ctx.font = 'bold 10px system-ui';
-    ctx.fillText('3.  🚀 NEON INTERCEPTOR', 28, 216);
+    ctx.font = 'bold 9px system-ui';
+    ctx.fillText('3.  🚀 NEON INTERCEPTOR', 26, 164);
     ctx.fillStyle = '#526175';
-    ctx.font = '7.5px monospace';
-    ctx.fillText('Futuristic action sci-fi vertical shooter.', 28, 230);
+    ctx.font = '7px monospace';
+    ctx.fillText('Futuristic vertical shooter space action.', 26, 175);
+
+    // Cartridge 4: Doodle Climber selector
+    const activeClimber = launcherSelection === 3;
+    ctx.fillStyle = activeClimber ? 'rgba(236, 72, 153, 0.12)' : '#070b13';
+    ctx.fillRect(18, 190, 204, 34);
+    ctx.strokeStyle = activeClimber ? '#ec4899' : '#1e293b';
+    ctx.lineWidth = activeClimber ? 1.5 : 1;
+    ctx.strokeRect(18, 190, 204, 34);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = activeClimber ? '#ffffff' : '#9ca3af';
+    ctx.font = 'bold 9px system-ui';
+    ctx.fillText('4.  🧗 DOODLE CLIMBER', 26, 204);
+    ctx.fillStyle = '#526175';
+    ctx.font = '7px monospace';
+    ctx.fillText('Infinite neon platform jumper & shoot.', 26, 215);
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#9ca3af';
     ctx.font = '8px sans-serif';
-    ctx.fillText('USE ARROWS ▲/▼ TO HIGHLIGHT', 120, 264);
+    ctx.fillText('USE ARROWS ▲/▼ TO HIGHLIGHT', 120, 252);
     ctx.fillStyle = '#22c55e';
     ctx.font = 'bold 8px monospace';
-    ctx.fillText('PRESS CENTER OK TO UNLEASH', 120, 276);
+    ctx.fillText('PRESS CENTER OK TO UNLEASH', 120, 266);
   }
 
   function renderDecryptor(ctx) {
@@ -1726,24 +2296,24 @@ document.addEventListener('DOMContentLoaded', () => {
       switch (key) {
         case 'ArrowUp':
         case '2':
-          launcherSelection = (launcherSelection - 1 + 3) % 3;
+          launcherSelection = (launcherSelection - 1 + 4) % 4;
           playSound('jump');
           break;
         case 'ArrowDown':
         case '8':
-          launcherSelection = (launcherSelection + 1) % 3;
+          launcherSelection = (launcherSelection + 1) % 4;
           playSound('jump');
           break;
         case '1':
           launcherSelection = 0;
           launchSelectedCart();
           break;
-        case '2':
-          launcherSelection = 1;
-          launchSelectedCart();
-          break;
         case '3':
           launcherSelection = 2;
+          launchSelectedCart();
+          break;
+        case '4':
+          launcherSelection = 3;
           launchSelectedCart();
           break;
         case 'Enter':
@@ -1751,6 +2321,50 @@ document.addEventListener('DOMContentLoaded', () => {
         case ' ':
         case 'SoftLeft':
           launchSelectedCart();
+          break;
+        case 'SoftRight':
+          handleMuteToggle();
+          break;
+        default:
+          break;
+      }
+      return;
+    }
+
+    if (appMode === 'CLIMBER') {
+      if (climberState === 'GAMEOVER') {
+        if (key === 'SoftLeft') {
+          appMode = 'LAUNCHER';
+          if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+          playSound('phase');
+        } else if (key === 'Enter' || key === '5' || key === ' ' || key === '2' || key === 'ArrowUp') {
+          initClimberGame();
+        } else if (key === 'SoftRight') {
+          handleMuteToggle();
+        }
+        return;
+      }
+
+      switch (key) {
+        case 'ArrowLeft':
+        case '4':
+          climberVx = Math.max(-5.5, climberVx - 1.2);
+          break;
+        case 'ArrowRight':
+        case '6':
+          climberVx = Math.min(5.5, climberVx + 1.2);
+          break;
+        case 'ArrowUp':
+        case '2':
+        case 'Enter':
+        case '5':
+        case ' ':
+          fireClimberLaser();
+          break;
+        case 'SoftLeft':
+          appMode = 'LAUNCHER';
+          if (lblSoftLeft) lblSoftLeft.textContent = 'LAUNCH';
+          playSound('phase');
           break;
         case 'SoftRight':
           handleMuteToggle();
